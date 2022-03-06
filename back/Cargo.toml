@@ -13,4 +13,5 @@ serde_json ="1.0"
 chrono = { version = "0.4", features = ["serde"] }
 sqlx = { version = "0.5.11", features = [ "runtime-tokio-rustls", "postgres", "chrono" ] }
 axum = {version="0.4",features = ["ws"] }
-
+tracing = "0.1"
+tracing-subscriber = "0.3.9"
