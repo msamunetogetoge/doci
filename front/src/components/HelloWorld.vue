@@ -30,20 +30,24 @@
 
 <script lang='ts'>
 import { Options, Vue } from "vue-class-component";
-import * as marked from "marked";
+import markdownIt from "markdown-it";
+import markdownItPlantuml from "markdown-it-plantuml";
+
+const md = new markdownIt();
+md.use(markdownItPlantuml);
 
 // @Options({
 //   props: {
 //     msg: String,
 //   },
 // })
+
 export default class HelloWorld extends Vue {
-  // msg!: string;
   markdown = "";
   html = "";
 
   Convert() {
-    this.html = marked.marked(this.markdown);
+    this.html = md.render(this.markdown);
   }
   // mounted() {
   //   this.msg += " Vuetify 3 Alpha";
