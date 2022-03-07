@@ -39,6 +39,7 @@ CREATE TABLE applications (
 CREATE TABLE web_pages (
     app_id bigint NOT NULL,
     page_path VARCHAR(512) NOT NULL,
+    file_path VARCHAR(512) NOT NULL,
     body text NOT NULL,
     created_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
