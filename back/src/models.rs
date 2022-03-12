@@ -1,10 +1,7 @@
 use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
-use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
-};
+use std::{env, fs, io, path::Path};
 
 /// users table
 #[derive(sqlx::FromRow)]
