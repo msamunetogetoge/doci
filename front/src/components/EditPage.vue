@@ -1,6 +1,6 @@
 <template>
   <v-container>
-    <v-toolbar color="cyan" dark> ページの情報 </v-toolbar>
+    <page-tool-bar :editing="editing" />
     <!-- <v-navigation-drawer app clipped>Navigation Lists</v-navigation-drawer> -->
     <nav-bar> </nav-bar>
     <v-row class="text-center">
@@ -37,8 +37,8 @@
     </v-row>
     <v-row>
       <v-spacer></v-spacer>
-      <v-btn v-if="!is_create">更新</v-btn>
-      <v-btn v-if="is_create">作成</v-btn>
+      <v-btn v-if="editing">更新</v-btn>
+      <v-btn v-if="!editing" @click="AddPage">作成</v-btn>
       <v-spacer></v-spacer>
     </v-row>
   </v-container>
@@ -48,7 +48,9 @@
 import { Vue, Component } from "vue-property-decorator";
 import markdownIt from "markdown-it";
 import markdownItPlantuml from "markdown-it-plantuml";
-import NavBar from "../components/NavigationBar.vue";
+import NavBar from "./NavigationBar.vue";
+import PageToolBar from "./ToolBar.vue";
+import { IsExistPage, Save } from "../utils/page-util";
 
 const md = new markdownIt();
 md.use(markdownItPlantuml);
@@ -62,15 +64,38 @@ md.use(markdownItPlantuml);
 @Component({
   components: {
     NavBar,
+    PageToolBar,
   },
 })
-export default class HelloWorld extends Vue {
-  is_create = false;
+export default class EditPage extends Vue {
+  editing = false;
   markdown = "";
   html = "";
 
+  app_id = 0;
+  page_path = "index.md";
   Convert() {
     this.html = md.render(this.markdown);
+  }
+
+  CheckSave(app_id: number, page_path: string): boolean {
+    return IsExistPage(app_id, page_path);
+  }
+
+  GetFilePath(app_id: number, page_path: string): string {
+    return page_path;
+  }
+
+  AddPage() {
+    if (IsExistPage(this.app_id, this.page_path)) {
+      alert("既に存在するページです");
+    } else {
+      try {
+        Save(this.app_id, this.page_path, this.markdown);
+      } catch (error) {
+        alert(error);
+      }
+    }
   }
 }
 </script>

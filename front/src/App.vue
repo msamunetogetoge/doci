@@ -1,29 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar app color="primary" dark clipped-left>
-      <div class="d-flex align-center">
-        <!-- doci icon <v-img
-          alt="Vuetify Logo"
-          class="shrink mr-2"
-          contain
-          src="https://cdn.vuetifyjs.com/images/logos/vuetify-logo-dark.png"
-          transition="scale-transition"
-          width="40"
-        /> -->
-
-        Doci
-      </div>
-
-      <v-spacer></v-spacer>
-      <v-btn href="" target="_blank" icon>
-        <v-icon>mdi-github</v-icon>
-      </v-btn>
-      <v-btn href="" target="_blank" text>
-        <span class="mr-2">Login</span>
-        <v-icon>mdi-open-in-new</v-icon>
-      </v-btn>
-    </v-app-bar>
-
+    <app-bar />
     <v-main>
       <router-view />
     </v-main>
@@ -39,6 +16,7 @@
 
 <script lang="ts">
 import Vue from "vue";
+import AppBar from "./components/AppBar.vue";
 
 export default Vue.extend({
   name: "App",
@@ -46,5 +24,8 @@ export default Vue.extend({
   data: () => ({
     //
   }),
+  components: {
+    AppBar,
+  },
 });
 </script>

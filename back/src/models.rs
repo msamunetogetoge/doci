@@ -1,7 +1,10 @@
 use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
-use std::env;
+use std::{
+    env, fs, io,
+    path::{Path, PathBuf},
+};
 
 /// users table
 #[derive(sqlx::FromRow)]
@@ -21,10 +24,36 @@ pub struct WebPages {
 }
 
 // post from client, document infomation
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct WebPageInfo {
     pub app_id: i64,
     pub page_path: String,
+    pub page_data: Option<String>,
+}
+
+// アプリとパスの情報からmdの格納先を作成する
+// 未作成
+impl WebPageInfo {
+    fn create_file_path(&self) -> String {
+        String::from(
+            Path::new("md")
+                .join(self.page_path.clone())
+                .to_str()
+                .unwrap(),
+        )
+    }
+}
+
+// Markdownを補完するディレクトリを作成する
+pub fn models_init() {
+    let folder_path = env::current_dir().unwrap().join(Path::new("md"));
+
+    if let Err(why) = fs::create_dir(folder_path) {
+        if why.kind() != io::ErrorKind::AlreadyExists {
+            println!("! {:?}", why.kind());
+            panic!("Folder is not Exist But Cannot create folder")
+        }
+    }
 }
 
 // .envファイルの情報からdbに接続する
@@ -59,9 +88,11 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
         return Err(sqlx::Error::RowNotFound);
     }
 
-    let file_path = create_file_path(&page);
+    let file_path = &page.create_file_path();
 
-    let page = sqlx::query!(
+    println!("add_web_page = {:?}", page);
+
+    let p = sqlx::query!(
         r##" INSERT INTO public."web_pages" (app_id, page_path, file_path) VALUES ($1, $2, $3)"##,
         page.app_id,
         &page.page_path,
@@ -69,14 +100,20 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     )
     .execute(pool)
     .await;
-    match page {
-        Ok(_) => Ok(()),
+
+    match p {
+        Ok(_) => {
+            let page_data = page.page_data.as_ref().unwrap();
+            println!("{}", page_data);
+            println!("{}", &file_path);
+            fs::write(&file_path, page_data).unwrap();
+            Ok(())
+        }
         Err(err) => Err(err),
     }
 }
 
-// アプリとパスの情報からmdの格納先を作成する
-// 未作成
-pub fn create_file_path(page: &WebPageInfo) -> &str {
-    &page.page_path
+// ファイルに上書きする
+pub async fn edit_web_page(file_path: &str, page_data: String) -> io::Result<()> {
+    fs::write(&file_path, &page_data)
 }

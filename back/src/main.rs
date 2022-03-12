@@ -12,6 +12,9 @@ use back::models::*;
 
 #[tokio::main]
 async fn main() {
+    // initing
+    models_init();
+
     // initialize tracing
     tracing_subscriber::fmt::init();
 
