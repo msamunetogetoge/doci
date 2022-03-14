@@ -1,7 +1,7 @@
 use dotenv::dotenv;
-use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgPool;
-use std::{env, fs, io, path::Path};
+use serde::{de::value::StrDeserializer, Deserialize, Serialize};
+use sqlx::{postgres::PgPool, Executor};
+use std::{env, fs, io, path::Path, slice::Split};
 
 /// users table
 #[derive(sqlx::FromRow)]
@@ -12,7 +12,32 @@ pub struct Users {
     pub mailaddress: String,
 }
 
-/// web_pages table
+#[derive(Serialize, Debug)]
+pub enum PageStructure<'a> {
+    None,
+    Data {
+        name: String,
+        children: Box<Vec<&'a PageStructure<'a>>>,
+    },
+}
+
+impl PageStructure<'_> {
+    pub fn data(&self) -> Vec<&PageStructure> {
+        let v = match self {
+            PageStructure::None => vec![self],
+            PageStructure::Data {
+                name: _,
+                children: c,
+            } => c.to_vec(),
+        };
+        v
+    }
+}
+
+/**
+web_pages table
+file_pathはmd@app_id@hoge@hige@huga.md の形に成形して格納する(/ -> @ の置換)
+*/
 #[derive(sqlx::FromRow)]
 pub struct WebPages {
     pub app_id: i64,
@@ -28,16 +53,134 @@ pub struct WebPageInfo {
     pub page_data: Option<String>,
 }
 
-// アプリとパスの情報からmdの格納先を作成する
-// 未作成
 impl WebPageInfo {
-    fn create_file_path(&self) -> String {
-        String::from(
-            Path::new("md")
-                .join(self.page_path.clone())
-                .to_str()
-                .unwrap(),
-        )
+    /**
+    アプリidとページパスの情報からmdの格納先情報を作成する
+    app_id@hoge@hige@huga.md の形に成形
+    /hoge/hige/huga.md  の形でもらう
+    */
+    pub fn create_file_path(&self) -> String {
+        let mut file_path = self.app_id.to_string();
+        let split = self.page_path.split('/');
+
+        for path in split {
+            file_path += "@";
+            file_path += path;
+        }
+
+        file_path
+    }
+    /**
+    markdown ファイルを取得する
+    */
+    pub fn get_markdown(&self) -> Result<String, io::Error> {
+        let folder_path = env::current_dir().unwrap().join(Path::new("md"));
+
+        let file_path = folder_path.join(self.create_file_path());
+
+        fs::read_to_string(file_path)
+    }
+
+    /**
+    マークダウンを上書き保存する
+    */
+    pub fn edit_web_page(&self) -> io::Result<()> {
+        let folder_path = env::current_dir().unwrap().join(Path::new("md"));
+
+        let file_path = folder_path.join(self.create_file_path());
+        fs::write(file_path, self.page_data.as_ref().unwrap())
+    }
+}
+
+/**
+page_hierarchy table
+*/
+#[derive(sqlx::FromRow)]
+pub struct PageHierarchy {
+    pub id: Option<i64>,
+    pub app_id: i64,
+    pub parent_path: String,
+    pub child_path: String,
+    pub hierarchy_difference: i32,
+}
+
+/**
+データから、PageStructure を構成する。
+PageHierarchy のapp_id が複数ある時はパニックする。
+再帰関数にすればおっけー
+Todo:error 出てるので直す
+ */
+pub fn correct_paeg_structure(
+    pages: Vec<PageHierarchy>,
+    app_name: String,
+) -> PageStructure<'static> {
+    let i = get_app_id(&pages);
+
+    let ancients = pages
+        .iter()
+        .filter(|p| p.parent_path == app_name && p.hierarchy_difference == 1);
+
+    let mut p_s = Vec::new();
+    for a in ancients {
+        let mut p_s_c = Vec::new();
+        p_s.push(&PageStructure::Data {
+            name: a.child_path,
+            children: if a.child_path.split('.').collect::<String>().len() == 1 {
+                Box::new(vec![&PageStructure::None])
+            } else {
+                // 再帰始まり
+                let childs = pages
+                    .iter()
+                    .filter(|p| p.parent_path == a.child_path && p.hierarchy_difference == 1);
+                for c in childs {
+                    let mut p_s_gc = Vec::new();
+                    p_s_c.push(&PageStructure::Data {
+                        name: c.child_path,
+                        children: if c.child_path.split('.').collect::<String>().len() == 1 {
+                            Box::new(vec![&PageStructure::None])
+                        } else {
+                            let g_childs = pages.iter().filter(|p| {
+                                p.parent_path == c.child_path && p.hierarchy_difference == 1
+                            });
+                            for g in g_childs {
+                                p_s_gc.push(&PageStructure::Data {
+                                    name: g.child_path,
+                                    children: if g.child_path.split('.').collect::<String>().len()
+                                        == 1
+                                    {
+                                        Box::new(vec![&PageStructure::None])
+                                    } else {
+                                        // 再帰終わり
+                                        Box::new(vec![&PageStructure::None])
+                                    },
+                                })
+                            }
+                            Box::new(p_s_gc)
+                        },
+                    });
+                }
+                Box::new(p_s_c)
+            },
+        })
+    }
+    PageStructure::Data {
+        name: app_name,
+        children: Box::new(p_s),
+    }
+}
+
+/**
+ページ階層構造から、app_id を取り出す
+もしも、二つ以上のapp_idが紛れていたらpanicする
+*/
+pub fn get_app_id(pages: &[PageHierarchy]) -> i64 {
+    let first_page = pages.first().unwrap();
+    let i = first_page.app_id;
+
+    if pages.iter().all(|p| p.app_id == i) {
+        i
+    } else {
+        panic!("app_id が複数あるデータが入力された。")
     }
 }
 
@@ -61,7 +204,7 @@ pub async fn get_conn() -> PgPool {
     PgPool::connect(&database_url).await.unwrap()
 }
 
-// ドキュメントを取得する
+// ドキュメントの情報を取得する
 pub async fn get_web_page(
     pool: &PgPool,
     id: i64,
@@ -75,6 +218,26 @@ pub async fn get_web_page(
 
     Ok(page)
 }
+
+/**
+ページの階層構造を取り出してJSON型で返す関数
+ */
+
+pub async fn get_page_structure(pool: &PgPool, app_id: i64) -> String {
+    let pages = sqlx::query_as::<_, PageHierarchy>(
+        r##"SELECT * FROM public."page_hierarchy" WHERE app_id=$1"##,
+    )
+    .bind(app_id)
+    .fetch_all(pool)
+    .await
+    .unwrap();
+
+    let app_name = "".to_string();
+    let data = correct_paeg_structure(pages, app_name);
+    serde_json::to_string(&data).unwrap()
+}
+
+pub fn get_ancient(pages: Vec<PageHierarchy>) {}
 
 // ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
@@ -108,9 +271,4 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
         }
         Err(err) => Err(err),
     }
-}
-
-// ファイルに上書きする
-pub async fn edit_web_page(file_path: &str, page_data: String) -> io::Result<()> {
-    fs::write(&file_path, &page_data)
 }

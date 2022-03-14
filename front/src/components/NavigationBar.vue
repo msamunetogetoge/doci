@@ -32,6 +32,23 @@
           </v-list-item-content>
         </v-list-item>
       </v-list>
+      <template>
+        <v-treeview
+          :items="items_folder"
+          :open-on-click="true"
+          @click="mini = !mini"
+          :transition="true"
+        >
+          <template v-slot:prepend="{ item }">
+            <v-icon
+              v-if="!item.parent"
+              v-text="
+                `mdi-${item.id === 1 ? 'file-document-multiple ' : 'folder'}`
+              "
+            ></v-icon>
+          </template>
+        </v-treeview>
+      </template>
     </v-navigation-drawer>
   </v-card>
 </template>
@@ -47,6 +64,85 @@ export default class NavBar extends Vue {
     { title: "Users", icon: "mdi-account-group-outline" },
   ];
   mini = true;
+  initiallyOpen = ["public"];
+  files = {
+    html: "mdi-language-html5",
+    js: "mdi-nodejs",
+    json: "mdi-code-json",
+    md: "mdi-language-markdown",
+    pdf: "mdi-file-pdf",
+    png: "mdi-file-image",
+    txt: "mdi-file-document-outline",
+    xls: "mdi-file-excel",
+  };
+  tree = [];
+  items_folder = [
+    {
+      id: 1,
+      name: "Documents",
+      children: [
+        {
+          id: 2,
+          name: "Core team",
+          children: [
+            {
+              id: 201,
+              name: "John",
+            },
+            {
+              id: 202,
+              name: "Kael",
+            },
+            {
+              id: 203,
+              name: "Nekosaur",
+            },
+            {
+              id: 204,
+              name: "Jacek",
+            },
+            {
+              id: 205,
+              name: "Andrew",
+            },
+          ],
+        },
+        {
+          id: 3,
+          name: "Administrators",
+          children: [
+            {
+              id: 301,
+              name: "Mike",
+            },
+            {
+              id: 302,
+              name: "Hunt",
+            },
+          ],
+        },
+        {
+          id: 4,
+          name: "Contributors",
+          children: [
+            {
+              id: 401,
+              name: "Phlow",
+            },
+            {
+              id: 402,
+              name: "Brandon",
+            },
+            {
+              id: 403,
+              name: "Sean",
+            },
+          ],
+        },
+      ],
+    },
+  ];
+  open = [1, 2];
 }
 </script>
 
