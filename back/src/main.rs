@@ -8,7 +8,8 @@ use axum::{
 };
 use std::net::SocketAddr;
 
-use back::models::*;
+pub mod models;
+use crate::models::{utils::*, schemas::*};
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +24,7 @@ async fn main() {
         // `GET /` goes to `root`
         .route("/", get(root))
         .route("/check", post(check_exist_page))
-        .route("/add", post(regiseter_page));
+        .route("/add", post(register_page));
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
@@ -53,7 +54,7 @@ async fn check_exist_page(
 }
 
 // 作れるならデータを作成する
-async fn regiseter_page(extract::Json(page_info): extract::Json<WebPageInfo>) -> impl IntoResponse {
+async fn register_page(extract::Json(page_info): extract::Json<WebPageInfo>) -> impl IntoResponse {
     let pool = get_conn().await;
     let page = add_web_page(&pool, page_info).await;
     match page {

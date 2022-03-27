@@ -1,7 +1,7 @@
 <template>
   <v-card color="grey lighten-4" flat tile>
     <v-toolbar dense>
-      <v-toolbar-title>ページタイトル</v-toolbar-title>
+      <v-toolbar-title>ページタイトル {{page_path}}</v-toolbar-title>
 
       <v-spacer></v-spacer>
 
@@ -26,5 +26,7 @@ export default class PageToolBar extends Vue {
   html = "";
   @Prop({ type: Boolean, default: false })
   editing?: boolean;
+  @Prop({type:String, default: "/"})
+  page_path!: string
 }
 </script>

@@ -1,6 +1,24 @@
 <template>
   <v-container>
-    <page-tool-bar :editing="editing" />
+      <app-bar @GivePagePath="GetPagePath" @New = "SetNew" />
+       
+    <v-card color="grey lighten-4" flat tile>
+    <v-toolbar dense>
+      <v-toolbar-title v-bind:value="page_path">{{page_path}} </v-toolbar-title>
+
+      <v-spacer></v-spacer>
+
+      <v-btn>
+        <v-icon>mdi-play</v-icon>
+        View
+      </v-btn>
+
+      <v-btn v-if="editing">
+        <v-icon>mdi-lead-pencil</v-icon>
+        Edit
+      </v-btn>
+    </v-toolbar>
+  </v-card>
     <!-- <v-navigation-drawer app clipped>Navigation Lists</v-navigation-drawer> -->
     <nav-bar> </nav-bar>
     <v-row class="text-center">
@@ -45,35 +63,43 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component } from "vue-property-decorator";
+import { Vue, Component, Prop } from "vue-property-decorator";
 import markdownIt from "markdown-it";
 import markdownItPlantuml from "markdown-it-plantuml";
 import NavBar from "./NavigationBar.vue";
+import AppBar from "./AppBar.vue";
 import PageToolBar from "./ToolBar.vue";
 import { IsExistPage, Save } from "../utils/page-util";
 
 const md = new markdownIt();
 md.use(markdownItPlantuml);
 
-// @Options({
-//   props: {
-//     msg: String,
-//   },
-// })
-
 @Component({
   components: {
+    AppBar,
     NavBar,
     PageToolBar,
   },
 })
 export default class EditPage extends Vue {
+  // @Prop()
+  //   page_path!: string;
+  @Prop({type: Number,default: 0})
+    app_id!: number;
+  
+
+  page_path="/"
   editing = false;
   markdown = "";
   html = "";
 
-  app_id = 0;
-  page_path = "index.md";
+  // app_id = 0;
+  // page_path = "index.md";
+  GetPagePath(page_path: string){
+    console.log("GetPAgePAth is Calling page_path = " + page_path);
+    this.page_path = page_path;
+  }
+
   Convert() {
     this.html = md.render(this.markdown);
   }
@@ -84,6 +110,10 @@ export default class EditPage extends Vue {
 
   GetFilePath(app_id: number, page_path: string): string {
     return page_path;
+  }
+
+  SetNew(isnew:boolean){
+    this.editing = false;
   }
 
   AddPage() {
