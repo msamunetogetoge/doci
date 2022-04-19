@@ -7,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use std::net::SocketAddr;
+use serde::{Deserialize, Serialize};
 
 pub mod models;
 use crate::models::{utils::*, schemas::*};
@@ -24,6 +25,7 @@ async fn main() {
         // `GET /` goes to `root`
         .route("/", get(root))
         .route("/check", post(check_exist_page))
+        .route("/get_hierarchy", post(get_hierarchy))
         .route("/add", post(register_page));
 
     // run our app with hyper
@@ -46,10 +48,10 @@ async fn check_exist_page(
     extract::Json(page_info): extract::Json<WebPageInfo>,
 ) -> response::Json<bool> {
     let pool = get_conn().await;
+    let b = get_web_page(&pool, page_info.app_id, &page_info.page_path).await.is_ok();
+    println!("check_exist_page, data = {:?},{}",&page_info, &b);
     Json(
-        get_web_page(&pool, page_info.app_id, &page_info.page_path)
-            .await
-            .is_ok(),
+        b
     )
 }
 
@@ -65,4 +67,24 @@ async fn register_page(extract::Json(page_info): extract::Json<WebPageInfo>) -> 
             StatusCode::INTERNAL_SERVER_ERROR
         }
     }
+}
+
+#[derive(Serialize,Deserialize, Debug)]
+struct HierarchyInfo{
+    id: Option<i64>,
+    app_id: i64,
+    parent_path: String,
+    depth: i32,
+}
+
+async fn get_hierarchy(extract::Json(info): extract::Json<HierarchyInfo>) -> response::Json<Vec<HierarchyTS>>{
+    let pool = get_conn().await;
+    if info.id == None{
+        Json(get_page_structure(&pool,info.app_id, info.parent_path, info.depth).await)
+    }
+    else{
+        Json(get_page_structure_from_id(&pool,info.id.unwrap()).await)
+    }
+    
+    
 }

@@ -42,9 +42,9 @@
                 md="4"
               >
                 <v-text-field
-                  label="app name/"
+                  label="app name/ 以下を入力してください。"
                   required
-                  v-model="PagePath"
+                  v-model="page_path"
                 ></v-text-field>
               </v-col>
             </v-row>
@@ -88,10 +88,6 @@
 import { Vue, Component,Prop } from "vue-property-decorator";
 import {IsExistPage,} from "../utils/page-util";
 
-
-// @Component({
-//    components: {PagePathInput,}
-// })
 @Component
 export default class AppBar extends Vue {
   dialog=false;
@@ -104,16 +100,24 @@ export default class AppBar extends Vue {
   @Prop({type:Number, default:0})
   AppId!: number;
 
+  @Prop({type:String, default:"app"})
+  AppName!: string;
+
+  page_path ="";
+  mounted(){
+    this.page_path = this.AppName+"/";
+  }
   SetPagePath(page_path:string){
-    this.PagePath = page_path;
+    const regx = new RegExp('/+', 'i');
+    this.page_path= page_path.replaceAll(regx,"/");
   }
 
-  CheckPagePath(){
-    let is_exist = IsExistPage(this.AppId, this.PagePath);
+  async CheckPagePath(){
+    let is_exist = await IsExistPage(this.AppId, this.page_path);
     if (is_exist){
-      alert(this.PagePath + " はすでに存在します")
+      alert(this.page_path + " はすでに存在します")
     }else{
-      this.$emit("GivePagePath", this.PagePath)
+      this.$emit("GivePagePath", this.page_path)
       this.$emit("New", true);
       this.dialog=false
     }

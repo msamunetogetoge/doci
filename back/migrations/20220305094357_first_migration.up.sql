@@ -58,14 +58,13 @@ CREATE TABLE web_pages (
 --- page_hierarchy table
 --- ページの階層構造を保存しておく  
 --- doc/index.md -> parent_path = doc, child_path = index.md
---- file かどうかは、child_path に調べたいpath が存在しない(hierarchy_difference != 0)時 で調べる
 --- web_pages にinsert やupdate が来た時に変更される
 CREATE TABLE page_hierarchy (
   id BIGSERIAL NOT NULL,
     app_id bigint NOT NULL,
     parent_path VARCHAR(512) NOT NULL NOT NULL,
     child_path VARCHAR(512) NOT NULL NOT NULL,
-    hierarchy_difference int NOT NULL,
+    depth int NOT NULL, --- child_path のdepth
     created_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
     PRIMARY KEY(id,app_id, parent_path, child_path)

@@ -2,72 +2,7 @@ use crate::models::schemas::*;
 use dotenv::dotenv;
 // use serde::{de::value::StrDeserializer, Deserialize, Serialize};
 use sqlx::{postgres::PgPool};
-use std::{env, fs, io, path::Path};
-
-/**
-データから、PageStructure を構成する。
-PageHierarchy のapp_id が複数ある時はパニックする。
-再帰関数にすればおっけー
-Todo:error 出てるので直す
- */
-// pub fn correct_paeg_structure(
-//     pages: Vec<PageHierarchy>,
-//     app_name: String,
-// ) -> PageStructure<'static> {
-//     let i = get_app_id(&pages);
-
-//     let ancients = pages
-//         .iter()
-//         .filter(|p| p.parent_path == app_name && p.hierarchy_difference == 1);
-
-//     let mut p_s = Vec::new();
-//     for a in ancients {
-//         let mut p_s_c = Vec::new();
-//         p_s.push(&PageStructure::Data {
-//             name: a.child_path,
-//             children: if a.child_path.split('.').collect::<String>().len() == 1 {
-//                 Box::new(vec![&PageStructure::None])
-//             } else {
-//                 // 再帰始まり
-//                 let childs = pages
-//                     .iter()
-//                     .filter(|p| p.parent_path == a.child_path && p.hierarchy_difference == 1);
-//                 for c in childs {
-//                     let mut p_s_gc = Vec::new();
-//                     p_s_c.push(&PageStructure::Data {
-//                         name: c.child_path,
-//                         children: if c.child_path.split('.').collect::<String>().len() == 1 {
-//                             Box::new(vec![&PageStructure::None])
-//                         } else {
-//                             let g_childs = pages.iter().filter(|p| {
-//                                 p.parent_path == c.child_path && p.hierarchy_difference == 1
-//                             });
-//                             for g in g_childs {
-//                                 p_s_gc.push(&PageStructure::Data {
-//                                     name: g.child_path,
-//                                     children: if g.child_path.split('.').collect::<String>().len()
-//                                         == 1
-//                                     {
-//                                         Box::new(vec![&PageStructure::None])
-//                                     } else {
-//                                         // 再帰終わり
-//                                         Box::new(vec![&PageStructure::None])
-//                                     },
-//                                 })
-//                             }
-//                             Box::new(p_s_gc)
-//                         },
-//                     });
-//                 }
-//                 Box::new(p_s_c)
-//             },
-//         })
-//     }
-//     PageStructure::Data {
-//         name: app_name,
-//         children: Box::new(p_s),
-//     }
-// }
+use std::{env, fs, io, path::{Path, PathBuf}};
 
 /**
 ページ階層構造から、app_id を取り出す
@@ -115,38 +50,84 @@ pub async fn get_web_page(
         .bind(page_path)
         .fetch_one(pool)
         .await?;
-
+    println!("{:?}", &page);
     Ok(page)
 }
 
 /**
-ページの階層構造を取り出してJSON型で返す関数
+ページの親を指定して、子を取り出す
+その後、フロント側で処理する形に変形する
+一番上の階層のときだけ使用する
  */
 
-pub async fn get_page_structure(pool: &PgPool, app_id: i64) -> String {
-    // let pages = sqlx::query_as::<_, PageHierarchy>(
-    //     r##"SELECT * FROM public."page_hierarchy" WHERE app_id=$1"##,
-    // )
-    // .bind(app_id)
-    // .fetch_all(pool)
-    // .await
-    // .unwrap();
-
-    let pages = sqlx::query_as::<_, WebPages>(
-        r##"SELECT app_id, page_path, file_path FROM public."web_pages" WHERE app_id=$1"##,
+pub async fn get_page_structure(pool: &PgPool, app_id: i64, parent_path:String, depth: i32) -> Vec<HierarchyTS>{
+    if depth != 1{
+        panic!("depth =1 以外のデータが投入された");
+    }
+    let pages = sqlx::query_as::<_, Hierarchy>(
+        r##"SELECT id, app_id, child_path, depth FROM public."page_hierarchy" 
+        WHERE app_id=$1 AND parent_path=$2 AND depth=$3"##,
     )
     .bind(app_id)
+    .bind(parent_path)
+    .bind(depth+1)
     .fetch_all(pool)
     .await
     .unwrap();
 
-    let app_name = "".to_string();
-    // let data = correct_paeg_structure(pages, app_name);
-    let data = "".to_string();
-    serde_json::to_string(&data).unwrap()
+    println!("{:?}",&pages);
+    pages.into_iter().map(|x| x.into_ts()).collect()
+
 }
 
-pub fn get_ancient(pages: Vec<PageHierarchy>) {}
+/**
+ページの親を指定して、子を取り出す
+その後、フロント側で処理する形に変形する
+ */
+
+pub async fn get_page_structure_from_id(pool: &PgPool, id:i64) -> Vec<HierarchyTS>{
+    let pages = sqlx::query_as::<_, Hierarchy>(
+        r##"  WITH X AS (SELECT * FROM public."page_hierarchy" WHERE id =$1 )
+        SELECT ph.id, ph.app_id, ph.child_path, ph.depth FROM public."page_hierarchy" ph ,X
+        WHERE ph.app_id=X.app_id AND ph.parent_path=X.child_path AND ph.depth=X.depth + 1;"##,
+    )
+    .bind(id)
+    .fetch_all(pool)
+    .await
+    .unwrap();
+    pages.into_iter().map(|x| x.into_ts()).collect()
+    
+
+}
+
+
+// get_page_path で使うためのストラクト
+#[derive(sqlx::FromRow)]
+struct ChildPath{
+    child_path: String,
+}
+
+// もらったpage_hierarchy のSerial で、祖先までのパスを取得する。
+pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String{
+    let mut url = PathBuf::from("");
+
+    // path_id の親すべて(自身も含む)を列挙するSQL
+    let pages= sqlx::query_as::<_,ChildPath>(r##" WITH RECURSIVE X( parent_path,child_path,depth) AS 
+    (SELECT ph.parent_path,ph.child_path, ph.depth FROM public."page_hierarchy"  ph WHERE ph.id = $1
+    union  all
+    select ph.parent_path, ph.child_path, ph.depth from X,public."page_hierarchy"  ph
+    where X.parent_path = ph.child_path AND X.parent_path != X.child_path)
+    SELECT child_path FROM X order by depth;
+    "##).bind(path_id)
+    .fetch_all(pool).await.unwrap();
+
+    for row in pages.iter(){
+        url.push(&row.child_path)
+    }
+
+    url.into_os_string().into_string().unwrap()
+}
+
 
 // ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
@@ -160,23 +141,121 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     let file_path = &page.create_file_path();
     let page_path = &page.get_page_path();
 
-    println!("add_web_page = {:?}", page);
+    // transaction start 
+    let mut tx = pool.begin().await?;
 
+    // page_path をpage_hierarchy 用に分解
+    let paths:Vec<&str> = page_path.split('/').collect();
+    let l = &paths.len();
+    
+    // page_hierarchy にデータを登録する
+    for (i, _path) in paths.clone().into_iter().enumerate(){
+        let j = i as i32;
+        if i+1 != *l{
+            let res = sqlx::query!(r##"
+            SELECT app_id FROM public."page_hierarchy" WHERE app_id = $1 AND parent_path = $2 AND child_path = $3 AND depth = $4
+            "##,
+            page.app_id,
+            &paths[i],
+            &paths[i+1],
+            j+2
+            ).fetch_one(&mut tx).await;
+        match res {
+            Ok(_) => {
+                // すでに存在するデータなので何もしない
+            }
+            Err(_) =>{
+                // データがないので、page_hierarchy にデータ追加する
+                let j = i as i32;
+                let _q = sqlx::query!(r##"
+                INSERT INTO public."page_hierarchy"  (app_id, parent_path, child_path, depth) VALUES ($1,$2, $3, $4)
+                "##,
+            page.app_id,
+            &paths[i],
+            &paths[i+1],
+            j +2
+        ).execute(&mut tx)
+        .await?;
+            }
+        }
+        }
+    }
+
+    // web_pages にデータ追加
     let p = sqlx::query!(
         r##" INSERT INTO public."web_pages" (app_id, page_path, file_path) VALUES ($1, $2, $3)"##,
         page.app_id,
-        page_path,
-        file_path
+        &page_path,
+        &file_path
     )
-    .execute(pool)
+    .execute(&mut tx)
     .await;
 
+    
+
+    // 処理がうまく行けば transaction をコミットする。
     match p {
         Ok(_) => {
             let page_data = page.page_data.as_ref().unwrap();
-            fs::write(&file_path, page_data).unwrap();
-            Ok(())
+            if let Err(err) =fs::write(&file_path, page_data){
+                tx.rollback().await?;
+                Err(sqlx::Error::Io(err))
+                
+            }
+            else{
+                tx.commit().await?;
+                Ok(())
+            }
         }
-        Err(err) => Err(err),
+        Err(err) => {
+            tx.rollback().await?;
+            Err(err)
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    // 所定のファイル名を作成できるかテストする。
+    // どのディレクトリに作られているか(current_dir/md/)はテストしない
+    #[test]
+    fn file_path_test() {
+        let info = WebPageInfo {
+            app_id: 100,
+            page_path: "doc/hoge/test.md".to_string(),
+            page_data: Some(String::from(
+                r##"# hoge  
+            ## hanage"##,
+            )),
+        };
+        let file_path = info.create_file_path();
+        assert_eq!("100@doc@hoge@test.md", Path::new(&file_path).file_name().unwrap().to_str().unwrap())
+    }
+
+    // md/test.md に# test desu という内容のファイルがあるときに、呼び出せるかテスト。
+    #[test]
+    fn get_markdown_test() {
+        let test = String::from("# test desu");
+
+        let info = WebPageInfo {
+            app_id: 1,
+            page_path: "test.md".to_string(),
+            page_data: None,
+        };
+
+        let markdown_text = info.get_markdown();
+
+        assert_eq!(test, markdown_text.unwrap())
+    }
+
+    // 階層構造からファイルパスを組み立てられるかテスト。 自動化できてはない。
+    #[tokio::test]
+    async fn get_page_path_test(){
+        let conn = get_conn().await;
+        let p = get_page_path(&conn, 6).await;
+        assert_eq!(p, "app/hoge.md".to_string())
     }
 }

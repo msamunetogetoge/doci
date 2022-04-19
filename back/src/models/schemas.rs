@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgPool, Executor};
-use std::{env, fs, io, path::{Path,PathBuf}, slice::Split};
+use std::{env, fs, io, path::{Path,PathBuf}};
 
 /// users table
 #[derive(sqlx::FromRow)]
@@ -12,24 +11,47 @@ pub struct Users {
 }
 
 #[derive(Serialize, Debug)]
-pub enum PageStructure<'a> {
-    None,
-    Data {
-        name: String,
-        children: Box<Vec<&'a PageStructure<'a>>>,
-    },
+pub enum Children{
+    EmptyChild,
+    Child(Box<Hierarchy>)
 }
 
-impl PageStructure<'_> {
-    pub fn data(&self) -> Vec<&PageStructure> {
-        let v = match self {
-            PageStructure::None => vec![self],
-            PageStructure::Data {
-                name: _,
-                children: c,
-            } => c.to_vec(),
-        };
-        v
+#[derive(sqlx::FromRow,Serialize, Debug)]
+pub struct Hierarchy {
+    pub id:i64,
+    pub app_id: i64,
+    pub child_path: String,
+    pub depth: i32,
+}
+
+#[derive(sqlx::FromRow,Serialize, Debug)]
+pub struct HierarchyTS {
+    pub id:i64,
+    pub app_id: i64,
+    pub name: String,
+    pub depth: i32,
+    pub children: Option<Vec<Children>>,
+}
+impl Hierarchy{
+    pub fn into_ts(self) -> HierarchyTS{
+        let path = Path::new(&self.child_path);
+        if path.extension() != None && path.extension().unwrap() == "md"{
+            HierarchyTS{
+                id:self.id,
+                app_id: self.app_id,
+                name: self.child_path,
+                depth: self.depth,
+                children: None
+            }
+        }else{
+            HierarchyTS{
+                id:self.id,
+                app_id: self.app_id,
+                name: self.child_path,
+                depth: self.depth,
+                children: Some(Vec::new())
+            }
+        }
     }
 }
 
@@ -37,7 +59,7 @@ impl PageStructure<'_> {
 web_pages table
 file_pathはmd@app_id@hoge@hige@huga.md の形に成形して格納する(/ -> @ の置換)
 */
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug)]
 pub struct WebPages {
     pub app_id: i64,
     pub page_path: String,
@@ -121,5 +143,5 @@ pub struct PageHierarchy {
     pub app_id: i64,
     pub parent_path: String,
     pub child_path: String,
-    pub hierarchy_difference: i32,
+    pub depth: i32,
 }

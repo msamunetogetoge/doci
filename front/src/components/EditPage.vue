@@ -1,6 +1,6 @@
 <template>
   <v-container>
-      <app-bar @GivePagePath="GetPagePath" @New = "SetNew" />
+      <app-bar @GivePagePath="GetPagePath" @New = "SetNew" :app-name="app_name" :app-id="app_id" />
        
     <v-card color="grey lighten-4" flat tile>
     <v-toolbar dense>
@@ -20,23 +20,22 @@
     </v-toolbar>
   </v-card>
     <!-- <v-navigation-drawer app clipped>Navigation Lists</v-navigation-drawer> -->
-    <nav-bar> </nav-bar>
+    <nav-bar :user-id="user_id" :app-id="app_id" :app-name="app_name" :page-hierarchy="items_folder" v-if="ShowNavBar"> </nav-bar>
     <v-row class="text-center">
-      <v-col cols="12">
+      <!-- <v-col cols="12">
         <v-img
           :src="require('../assets/logo.svg')"
           class="my-3"
           contain
           height="200"
         />
-      </v-col>
+      </v-col> -->
 
       <v-col>
         <v-card>
           <v-card-title> Input Markdown </v-card-title>
           <v-card-text>
             <v-textarea
-              name="input-7-1"
               filled
               auto-grow
               v-model="markdown"
@@ -70,6 +69,7 @@ import NavBar from "./NavigationBar.vue";
 import AppBar from "./AppBar.vue";
 import PageToolBar from "./ToolBar.vue";
 import { IsExistPage, Save } from "../utils/page-util";
+import { Hierarchy } from "@/utils/hierarchy-utils";
 
 const md = new markdownIt();
 md.use(markdownItPlantuml);
@@ -86,13 +86,34 @@ export default class EditPage extends Vue {
   //   page_path!: string;
   @Prop({type: Number,default: 0})
     app_id!: number;
-  
+  @Prop({type: Number,default: 0})
+    user_id!: number;
+  @Prop({type:String, default:"app"})
+    app_name!:string;
+  // @Prop({default: ()=>[]})
+  //   items_folder!:Hierarchy[];
 
   page_path="/"
   editing = false;
   markdown = "";
   html = "";
+  ShowNavBar=true;
+  items_folder:Hierarchy[]= [{app_id:this.app_id, name: this.app_name,depth:1,id:undefined, children:[]}];
+  created(){
+    // ログイン、アプリ選択時にvue router から値をもらうようになったら削除する start
+    this.app_id =0;
+    this.app_name="app";
+    // end
+    // this.items_folder =  [{app_id:this.app_id, name: this.app_name,depth:1,id:undefined, children:[]}];
 
+  }
+
+  UpdatePages(){
+    this.ShowNavBar = false;
+    this.$nextTick(() => (this.ShowNavBar= true));
+  }
+  
+  
   // app_id = 0;
   // page_path = "index.md";
   GetPagePath(page_path: string){
@@ -104,10 +125,6 @@ export default class EditPage extends Vue {
     this.html = md.render(this.markdown);
   }
 
-  CheckSave(app_id: number, page_path: string): boolean {
-    return IsExistPage(app_id, page_path);
-  }
-
   GetFilePath(app_id: number, page_path: string): string {
     return page_path;
   }
@@ -116,12 +133,17 @@ export default class EditPage extends Vue {
     this.editing = false;
   }
 
-  AddPage() {
-    if (IsExistPage(this.app_id, this.page_path)) {
+  async AddPage() {
+    if (await IsExistPage(this.app_id, this.page_path)) {
       alert("既に存在するページです");
     } else {
       try {
-        Save(this.app_id, this.page_path, this.markdown);
+        // ページファイルを追加する
+        await Save(this.app_id, this.page_path, this.markdown);
+        // nav bar のページ構造部分を初期化する
+        this.UpdatePages();
+        this.items_folder = [];
+        this.items_folder = [{app_id:this.app_id, name: this.app_name,depth:1,id:undefined, children:[]}];
       } catch (error) {
         alert(error);
       }
