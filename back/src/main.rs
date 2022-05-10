@@ -6,8 +6,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use std::net::SocketAddr;
+use std::{net::SocketAddr};
 use serde::{Deserialize, Serialize};
+
 
 pub mod models;
 use crate::models::{utils::*, schemas::*};
@@ -26,12 +27,13 @@ async fn main() {
         .route("/", get(root))
         .route("/check", post(check_exist_page))
         .route("/get_hierarchy", post(get_hierarchy))
-        .route("/add", post(register_page));
+        .route("/add", post(register_page))
+        .route("/delete", post(delete_page));
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    tracing::debug!("listening on {}", addr);
+    tracing::info!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
@@ -85,6 +87,20 @@ async fn get_hierarchy(extract::Json(info): extract::Json<HierarchyInfo>) -> res
     else{
         Json(get_page_structure_from_id(&pool,info.id.unwrap()).await)
     }
-    
-    
+}
+
+#[derive(Serialize,Deserialize, Debug)]
+struct HierarchyID{
+    id: i64,
+}
+
+
+async fn delete_page(extract::Json(hierarchy_id):extract::Json<HierarchyID>) ->  impl IntoResponse {
+    let pool = get_conn().await;
+    if let Err(err) = delete_pages(&pool, hierarchy_id.id).await{
+        tracing::info!("In delete_page error occured:{}", err);
+        println!("{}", err.to_string());
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    };
+    StatusCode::ACCEPTED
 }

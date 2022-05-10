@@ -1,7 +1,7 @@
 use crate::models::schemas::*;
 use dotenv::dotenv;
 // use serde::{de::value::StrDeserializer, Deserialize, Serialize};
-use sqlx::{postgres::PgPool};
+use sqlx::{postgres::PgPool, Row};
 use std::{env, fs, io, path::{Path, PathBuf}};
 
 /**
@@ -81,7 +81,7 @@ pub async fn get_page_structure(pool: &PgPool, app_id: i64, parent_path:String, 
 }
 
 /**
-ページの親を指定して、子を取り出す
+ページの親を(postgressqlのserialで)指定して、子を取り出す
 その後、フロント側で処理する形に変形する
  */
 
@@ -128,6 +128,96 @@ pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String{
     url.into_os_string().into_string().unwrap()
 }
 
+// delete_pagesで使うためのストラクト
+#[derive(sqlx::FromRow)]
+struct HierarchyId{
+    id:i64,
+    child_path:String,
+}
+
+
+// もらったparent_pathの子どものpage_hierarchy, web_pagesのデータ、マークダウンのファイルを削除する 
+
+pub async fn delete_pages(pool: &PgPool,id:i64) -> Result<(), sqlx::Error> {
+    
+    let app_id= sqlx::query!(r##"SELECT app_id FROM public."page_hierarchy" WHERE id = $1 "##, id).fetch_one(pool).await?;
+
+    // トランザクションスタート
+    let mut tx = pool.begin().await?;
+
+    // web_pages からデータを削除するときの、page_path作成のためにデータを取得しておく
+    let pages = sqlx::query_as::<_,HierarchyId>(r##"
+    WITH RECURSIVE X(id, parent_path,child_path) AS 
+    (SELECT ph.id,ph.parent_path,ph.child_path FROM public."page_hierarchy"  ph 
+WHERE ph.id = $1
+    union  all
+    select ph.id, ph.parent_path, ph.child_path from X,public."page_hierarchy"  ph
+    where ph.parent_path = X.child_path AND X.parent_path != X.child_path)
+    SELECT id,child_path FROM X;
+    "##)
+    .bind(id)
+    .fetch_all(&mut tx).await?;
+
+    // page_hierarchy から削除
+    if let Err(err)= sqlx::query(r##" 
+    WITH RECURSIVE X(id, parent_path,child_path) AS 
+    (SELECT ph.id,ph.parent_path,ph.child_path FROM public."page_hierarchy"  ph 
+WHERE ph.id = $1
+    union  all
+    select ph.id, ph.parent_path, ph.child_path from X,public."page_hierarchy"  ph
+    where ph.parent_path = X.child_path AND X.parent_path != X.child_path)
+    DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
+    "##).bind(id)
+    .fetch_all(&mut tx)
+    .await{
+        tx.rollback().await?;
+        return Err(err);
+    };
+
+    // web_pagesから削除スタート
+    let mut delete_pages :Vec<String>=vec!();
+
+    for page in pages.into_iter(){
+        // pages からデータ(*.md がchild_path にあるデータ)を抽出
+        if page.child_path.contains(".md"){
+            // 取得したデータからページパスを作成
+            delete_pages.push(get_page_path(pool, page.id).await);
+        }
+    }
+
+    // web_pages から削除
+    
+    for page_path in delete_pages{
+        println!("in delete_pages, pages in web_page is  {}", page_path);
+
+        // ファイルを削除するためにデータを取得しておく
+        let row = sqlx::query(r##" SELECT file_path  FROM public."web_pages" WHERE app_id = $1 AND page_path =$2"##)
+        .bind(app_id.app_id)
+        .bind(&page_path)
+        .fetch_one(&mut tx).await?;
+        
+        if let Err(err) = sqlx::query(r##" DELETE FROM public."web_pages" WHERE app_id = $1 AND page_path =$2"##)
+        .bind(app_id.app_id)
+        .bind(&page_path)
+        .fetch_all(&mut tx)
+        .await{
+            tx.rollback().await?;
+            return Err(err);
+        }
+
+        // ファイルの削除
+        let file_path :String = row.get("file_path");
+        if let Err(e) = fs::remove_file(file_path){
+            tx.rollback().await?;
+            return Err(sqlx::Error::Io(e));
+        };
+    }
+    // web_pages から削除終わり
+    
+    // トランザクション終わり
+    Ok(tx.commit().await?)
+    
+}
 
 // ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {

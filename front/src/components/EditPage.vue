@@ -20,7 +20,7 @@
     </v-toolbar>
   </v-card>
     <!-- <v-navigation-drawer app clipped>Navigation Lists</v-navigation-drawer> -->
-    <nav-bar :user-id="user_id" :app-id="app_id" :app-name="app_name" :page-hierarchy="items_folder" v-if="ShowNavBar"> </nav-bar>
+    <nav-bar @StartEdit="StartEdit" :user-id="user_id" :app-id="app_id" :app-name="app_name" :page-hierarchy="items_folder" v-if="ShowNavBar"> </nav-bar>
     <v-row class="text-center">
       <!-- <v-col cols="12">
         <v-img
@@ -105,6 +105,15 @@ export default class EditPage extends Vue {
     this.app_name="app";
     // end
     // this.items_folder =  [{app_id:this.app_id, name: this.app_name,depth:1,id:undefined, children:[]}];
+
+  }
+
+  // nav-bar から編集ボタンを押したときに、ページを編集モードにする。
+  StartEdit(page_path:string, markdown: string){
+    this.editing=true;
+    this.page_path = page_path;
+    this.markdown = markdown;
+    this.Convert();
 
   }
 

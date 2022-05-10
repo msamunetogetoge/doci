@@ -7,7 +7,6 @@
       :mini-variant.sync="mini"
       permanent
     >
-    <v-btn depressed @click="CloseAllTree"> 閉じる</v-btn>
       <v-list-item class="px-2">
         <v-list-item-avatar>
           <v-icon>mdi-account-box</v-icon>
@@ -35,6 +34,7 @@
       </v-list>
       <template>
         <v-treeview
+        v-if="show_tree"
           :items="items_folder"
           :dense="true"
           :open="open"
@@ -45,9 +45,76 @@
           <template v-slot:prepend="{ item }">
             <v-icon
               v-text="GetIcon(item)"
-              
             ></v-icon>
 
+          </template>
+          <template v-slot:append="{item}">
+            <!-- <v-btn icon @click="DeleteItems(item)">
+              <v-icon
+              v-text="files.delete"
+              ></v-icon>
+            </v-btn> -->
+            <v-dialog
+              v-model="dialog"
+              max-width="600px"
+              :retain-focus="false"
+              
+            >
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn icon 
+                v-if = "item.depth!=1"
+                  v-bind="attrs"
+                  v-on="on"
+                  >
+                      <v-icon
+                      v-text="files.delete"
+                      ></v-icon>
+                </v-btn>
+              </template>
+               
+                <v-card >
+                <v-card-text>
+                  削除しますか？
+                </v-card-text>
+                <v-card-actions>
+                  <v-spacer></v-spacer>
+
+                  <v-btn
+                    color="blue darken-1"
+                    text
+                    @click="dialog = false"
+                  >
+                    No
+                  </v-btn>
+                  <v-btn
+                  
+                    color="blue darken-1"
+                    text
+                    @click="DeleteItems(item)"
+                  >
+                    Yes
+                  </v-btn> 
+                
+                  
+                 
+                </v-card-actions>
+              </v-card>
+              
+            </v-dialog>
+              <!-- <v-btn icon @click="DeleteItems(item)">
+              <v-icon
+              v-text="files.delete"
+              ></v-icon>
+              </v-btn> -->
+            
+            
+            <v-btn icon 
+            v-if = "!item.children"
+            @click="EditItems(item)">
+              <v-icon
+              v-text="files.pencil"
+            ></v-icon>
+            </v-btn>
           </template>
         </v-treeview>
       </template>
@@ -55,6 +122,7 @@
   </v-card>
 </template>
 <script lang="ts">
+import { DeletePages } from "@/utils/page-util";
 import { Vue, Component , Prop, Watch} from "vue-property-decorator";
 import {GetFolders,Hierarchy } from "../utils/hierarchy-utils";
 
@@ -73,9 +141,10 @@ export default class NavBar extends Vue {
   PageHierarchy!:Hierarchy[];
 
 
-
+  dialog=false;
   drawer = true;
   mini = true;
+  show_tree = true;
   // treeviewで、最初に開いておくフォルダなど
   open =[];
   
@@ -91,7 +160,15 @@ export default class NavBar extends Vue {
     png: "mdi-file-image",
     txt: "mdi-file-document-outline",
     xls: "mdi-file-excel",
+    delete:"mdi-delete",
+    pencil:"mdi-lead-pencil",
   };
+
+  items =  [
+        { title: 'Real-Time', icon: 'mdi-clock' },
+        { title: 'Audience', icon: 'mdi-account' },
+        { title: 'Conversions', icon: 'mdi-flag' },
+      ]
   
   items_folder:Hierarchy[]=[];// tree-view の中身
 
@@ -99,6 +176,31 @@ export default class NavBar extends Vue {
   mounted(){
   // this.items_folder=this.PageHierarchy;
   this.items_folder=[{app_id:this.AppId, name: this.AppName,depth:1,id:undefined, children:[]}];
+ }
+
+ // tree-viewのボタンをクリックしたときに呼ばれる
+ // 確認したらフォルダ(を含む)以下を削除する
+ async DeleteItems(item:Hierarchy):Promise<void>{
+   let success = await DeletePages(item);
+   if (success){
+    alert(item + "を削除しました");
+    this.show_tree = false;
+    this.$nextTick(() => (this.show_tree= true));
+    this.items_folder=[{app_id:this.AppId, name: this.AppName,depth:1,id:undefined, children:[]}];
+   }else{
+     alert("削除に失敗しました");
+   }
+  this.dialog = false;   
+   
+ }
+
+ // tree-viewのボタンをクリックしたときに呼ばれる
+ // マークダウンファイルを編集する
+ EditItems(item:Hierarchy):void{
+   // page_path とその内容を取得して、EditPage.vueに渡す
+   // emit StartEdit(page_path, markdown)
+   alert(item + "を編集します");
+   
  }
  
 
