@@ -107,9 +107,11 @@ struct ChildPath{
     child_path: String,
 }
 
-// もらったpage_hierarchy のSerial で、祖先までのパスを取得する。
+// もらったpage_hierarchy のSerial で、祖先までのページパス(app/hoge/hogege.md など)を取得する。
+// パスは、'/'区切り
 pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String{
-    let mut url = PathBuf::from("");
+    // let mut url = PathBuf::from("");
+    let mut url = String::from("");
 
     // path_id の親すべて(自身も含む)を列挙するSQL
     let pages= sqlx::query_as::<_,ChildPath>(r##" WITH RECURSIVE X( parent_path,child_path,depth) AS 
@@ -122,10 +124,12 @@ pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String{
     .fetch_all(pool).await.unwrap();
 
     for row in pages.iter(){
-        url.push(&row.child_path)
+        url.push_str(&row.child_path);
+        url.push('/');
     }
+    let _ = url.remove(url.len()-1);
 
-    url.into_os_string().into_string().unwrap()
+    url
 }
 
 // delete_pagesで使うためのストラクト
