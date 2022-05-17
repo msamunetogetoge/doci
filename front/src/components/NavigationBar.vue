@@ -34,7 +34,7 @@
       </v-list>
       <template>
         <v-treeview
-        v-if="show_tree"
+          v-if="show_tree"
           :items="items_folder"
           :dense="true"
           :open="open"
@@ -43,77 +43,43 @@
           :load-children="AddChildren"
         >
           <template v-slot:prepend="{ item }">
-            <v-icon
-              v-text="GetIcon(item)"
-            ></v-icon>
-
+            <v-icon v-text="GetIcon(item)"></v-icon>
           </template>
-          <template v-slot:append="{item}">
+          <template v-slot:append="{ item }">
             <!-- <v-btn icon @click="DeleteItems(item)">
               <v-icon
               v-text="files.delete"
               ></v-icon>
             </v-btn> -->
-            <v-dialog
-              v-model="dialog"
-              max-width="600px"
-              :retain-focus="false"
-              
-            >
+            <v-dialog v-model="dialog" max-width="600px" :retain-focus="false">
               <template v-slot:activator="{ on, attrs }">
-                <v-btn icon 
-                v-if = "item.depth!=1"
-                  v-bind="attrs"
-                  v-on="on"
-                  >
-                      <v-icon
-                      v-text="files.delete"
-                      ></v-icon>
+                <v-btn icon v-if="item.depth != 1" v-bind="attrs" v-on="on">
+                  <v-icon v-text="files.delete"></v-icon>
                 </v-btn>
               </template>
-               
-                <v-card >
-                <v-card-text>
-                  削除しますか？
-                </v-card-text>
+
+              <v-card>
+                <v-card-text> 削除しますか？ </v-card-text>
                 <v-card-actions>
                   <v-spacer></v-spacer>
 
-                  <v-btn
-                    color="blue darken-1"
-                    text
-                    @click="dialog = false"
-                  >
+                  <v-btn color="blue darken-1" text @click="dialog = false">
                     No
                   </v-btn>
-                  <v-btn
-                  
-                    color="blue darken-1"
-                    text
-                    @click="DeleteItems(item)"
-                  >
+                  <v-btn color="blue darken-1" text @click="DeleteItems(item)">
                     Yes
-                  </v-btn> 
-                
-                  
-                 
+                  </v-btn>
                 </v-card-actions>
               </v-card>
-              
             </v-dialog>
-              <!-- <v-btn icon @click="DeleteItems(item)">
+            <!-- <v-btn icon @click="DeleteItems(item)">
               <v-icon
               v-text="files.delete"
               ></v-icon>
               </v-btn> -->
-            
-            
-            <v-btn icon 
-            v-if = "!item.children"
-            @click="EditItems(item)">
-              <v-icon
-              v-text="files.pencil"
-            ></v-icon>
+
+            <v-btn icon v-if="!item.children" @click="EditItems(item)">
+              <v-icon v-text="files.pencil"></v-icon>
             </v-btn>
           </template>
         </v-treeview>
@@ -122,36 +88,36 @@
   </v-card>
 </template>
 <script lang="ts">
-import { DeletePages } from "@/utils/page-util";
-import { Vue, Component , Prop, Watch} from "vue-property-decorator";
-import {GetFolders,Hierarchy } from "../utils/hierarchy-utils";
+import { DeletePages, GetPage } from "@/utils/page-util";
+import { Vue, Component, Prop, Watch } from "vue-property-decorator";
+import { GetFolders, Hierarchy } from "../utils/hierarchy-utils";
+import EditPage from "./EditPage.vue";
 
 @Component
 export default class NavBar extends Vue {
-  @Prop({type:Number, default:0})
-  AppId!:number;
+  @Prop({ type: Number, default: 0 })
+  AppId!: number;
 
-  @Prop({type:String, default:"app"})
-  AppName!:string;
+  @Prop({ type: String, default: "app" })
+  AppName!: string;
 
-  @Prop({type:Number, default:0})
-  UserId!:number;
+  @Prop({ type: Number, default: 0 })
+  UserId!: number;
 
-  @Prop({ default:() =>[]})
-  PageHierarchy!:Hierarchy[];
+  @Prop({ default: () => [] })
+  PageHierarchy!: Hierarchy[];
 
-
-  dialog=false;
+  dialog = false;
   drawer = true;
   mini = true;
   show_tree = true;
   // treeviewで、最初に開いておくフォルダなど
-  open =[];
-  
+  open = [];
+
   //アイコン名
   files = {
-    folder:"mdi-folder",
-    folders:"mdi--file-document-multiple",
+    folder: "mdi-folder",
+    folders: "mdi--file-document-multiple",
     html: "mdi-language-html5",
     js: "mdi-nodejs",
     json: "mdi-code-json",
@@ -160,78 +126,100 @@ export default class NavBar extends Vue {
     png: "mdi-file-image",
     txt: "mdi-file-document-outline",
     xls: "mdi-file-excel",
-    delete:"mdi-delete",
-    pencil:"mdi-lead-pencil",
+    delete: "mdi-delete",
+    pencil: "mdi-lead-pencil",
   };
 
-  items =  [
-        { title: 'Real-Time', icon: 'mdi-clock' },
-        { title: 'Audience', icon: 'mdi-account' },
-        { title: 'Conversions', icon: 'mdi-flag' },
-      ]
-  
-  items_folder:Hierarchy[]=[];// tree-view の中身
+  items = [
+    { title: "Real-Time", icon: "mdi-clock" },
+    { title: "Audience", icon: "mdi-account" },
+    { title: "Conversions", icon: "mdi-flag" },
+  ];
 
- // mount が終わったらプロパティの初期値をtree-view にセットする
-  mounted(){
-  // this.items_folder=this.PageHierarchy;
-  this.items_folder=[{app_id:this.AppId, name: this.AppName,depth:1,id:undefined, children:[]}];
- }
+  items_folder: Hierarchy[] = []; // tree-view の中身
 
- // tree-viewのボタンをクリックしたときに呼ばれる
- // 確認したらフォルダ(を含む)以下を削除する
- async DeleteItems(item:Hierarchy):Promise<void>{
-   let success = await DeletePages(item);
-   if (success){
-    alert(item + "を削除しました");
-    this.show_tree = false;
-    this.$nextTick(() => (this.show_tree= true));
-    this.items_folder=[{app_id:this.AppId, name: this.AppName,depth:1,id:undefined, children:[]}];
-   }else{
-     alert("削除に失敗しました");
-   }
-  this.dialog = false;   
-   
- }
-
- // tree-viewのボタンをクリックしたときに呼ばれる
- // マークダウンファイルを編集する
- EditItems(item:Hierarchy):void{
-   // page_path とその内容を取得して、EditPage.vueに渡す
-   // emit StartEdit(page_path, markdown)
-   alert(item + "を編集します");
-   
- }
- 
-
-  // tree-view のアイコンを決める関数
-  GetIcon(item:Hierarchy):string{
-    if (item.depth === 1 ){
-      return this.files["folders"];
-    }else if(item.children){
-      return this.files["folder"];
-    }else{
-        return this.files["md"];
-      }
+  // mount が終わったらプロパティの初期値をtree-view にセットする
+  mounted() {
+    // this.items_folder=this.PageHierarchy;
+    this.items_folder = [
+      {
+        app_id: this.AppId,
+        name: this.AppName,
+        depth: 1,
+        id: undefined,
+        children: [],
+      },
+    ];
   }
 
-  // tree-view のアイコンをクリックしたら、フォルダの中身を検索して追加する関数 
-  async AddChildren(parent: Hierarchy){
-    let child:Hierarchy[] = await GetFolders(this.AppId, parent.depth, parent.name, parent.id);
-    
-    if (parent.children){
+  // tree-viewのボタンをクリックしたときに呼ばれる
+  // 確認したらフォルダ(を含む)以下を削除する
+  async DeleteItems(item: Hierarchy): Promise<void> {
+    let success = await DeletePages(item);
+    if (success) {
+      alert(item + "を削除しました");
+      this.show_tree = false;
+      this.$nextTick(() => (this.show_tree = true));
+      this.items_folder = [
+        {
+          app_id: this.AppId,
+          name: this.AppName,
+          depth: 1,
+          id: undefined,
+          children: [],
+        },
+      ];
+    } else {
+      alert("削除に失敗しました");
+    }
+    this.dialog = false;
+  }
+
+  // tree-viewのボタンをクリックしたときに呼ばれる
+  // マークダウンファイルを編集する
+  async EditItems(item: Hierarchy) {
+    // page_path とその内容を取得して、EditPage.vueに渡す
+
+    // TODO:page_path も取得するようにする
+    // {"page_path":"a/b.md", "md":"#test"}
+    if (item.id === undefined) {
+      alert("編集できません");
+      return;
+    } else {
+      let page = await GetPage(item.id);
+      this.$emit("StartEdit", page.page_path, page.md);
+    }
+  }
+
+  // tree-view のアイコンを決める関数
+  GetIcon(item: Hierarchy): string {
+    if (item.depth === 1) {
+      return this.files["folders"];
+    } else if (item.children) {
+      return this.files["folder"];
+    } else {
+      return this.files["md"];
+    }
+  }
+
+  // tree-view のアイコンをクリックしたら、フォルダの中身を検索して追加する関数
+  async AddChildren(parent: Hierarchy) {
+    let child: Hierarchy[] = await GetFolders(
+      this.AppId,
+      parent.depth,
+      parent.name,
+      parent.id
+    );
+
+    if (parent.children) {
       for (let index = 0; index < child.length; index++) {
         const element = child[index];
         parent.children.push(element);
-        
       }
-    }
-    else{
+    } else {
       // 何もしない
     }
-
   }
-
 }
 </script>
 
