@@ -15,18 +15,10 @@
     </div>
 
     <v-spacer></v-spacer>
-    <v-dialog
-      v-model="dialog"
-      persistent
-      max-width="600px"
-    >
+    <v-dialog v-model="dialog" persistent max-width="600px">
       <template v-slot:activator="{ on, attrs }">
-        <v-btn
-        icon @click="IsInput = true"
-          v-bind="attrs"
-          v-on="on"
-        >
-          New 
+        <v-btn icon @click="IsInput = true" v-bind="attrs" v-on="on">
+          New
         </v-btn>
       </template>
       <v-card>
@@ -36,11 +28,7 @@
         <v-card-text>
           <v-container>
             <v-row>
-              <v-col
-                cols="12"
-                sm="6"
-                md="4"
-              >
+              <v-col cols="12" sm="6" md="4">
                 <v-text-field
                   label="app name/ 以下を入力してください。"
                   required
@@ -53,20 +41,10 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn
-            color="blue darken-1"
-            text
-            @click="dialog = false"
-          >
+          <v-btn color="blue darken-1" text @click="dialog = false">
             Close
           </v-btn>
-          <v-btn
-            color="blue darken-1"
-            text
-            @click="CheckPagePath"
-          >
-            Ok
-          </v-btn>
+          <v-btn color="blue darken-1" text @click="CheckPagePath"> Ok </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -82,47 +60,44 @@
       <v-icon>mdi-open-in-new</v-icon>
     </v-btn>
   </v-app-bar>
-   
 </template>
 <script lang="ts">
-import { Vue, Component,Prop } from "vue-property-decorator";
-import {IsExistPage,} from "../utils/page-util";
+import { Vue, Component, Prop } from "vue-property-decorator";
+import { IsExistPage } from "../utils/page-util";
 
 @Component
 export default class AppBar extends Vue {
-  dialog=false;
-  @Prop({type:Boolean, default: false})
+  dialog = false;
+  @Prop({ type: Boolean, default: false })
   IsInput?: boolean;
-  
-  @Prop({type:String, default:"/"})
-  PagePath!:string;
 
-  @Prop({type:Number, default:0})
+  @Prop({ type: String, default: "/" })
+  PagePath!: string;
+
+  @Prop({ type: Number, default: 0 })
   AppId!: number;
 
-  @Prop({type:String, default:"app"})
+  @Prop({ type: String, default: "app" })
   AppName!: string;
 
-  page_path ="";
-  mounted(){
-    this.page_path = this.AppName+"/";
+  page_path = "";
+  mounted() {
+    this.page_path = this.AppName + "/";
   }
-  SetPagePath(page_path:string){
-    const regx = new RegExp('/+', 'i');
-    this.page_path= page_path.replaceAll(regx,"/");
+  SetPagePath(page_path: string) {
+    const regx = new RegExp("/+", "i");
+    this.page_path = page_path.replaceAll(regx, "/");
   }
 
-  async CheckPagePath(){
+  async CheckPagePath() {
     let is_exist = await IsExistPage(this.AppId, this.page_path);
-    if (is_exist){
-      alert(this.page_path + " はすでに存在します")
-    }else{
-      this.$emit("GivePagePath", this.page_path)
-      this.$emit("New", true);
-      this.dialog=false
+    if (is_exist) {
+      alert(this.page_path + " はすでに存在します");
+    } else {
+      this.$emit("GivePagePath", this.page_path);
+      this.$emit("New");
+      this.dialog = false;
     }
   }
 }
-
-
 </script>
