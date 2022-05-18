@@ -88,10 +88,9 @@
   </v-card>
 </template>
 <script lang="ts">
-import { DeletePages, GetPage } from "@/utils/page-util";
-import { Vue, Component, Prop, Watch } from "vue-property-decorator";
+import { DeletePages, GetPage } from "../utils/page-util";
+import { Vue, Component, Prop } from "vue-property-decorator";
 import { GetFolders, Hierarchy } from "../utils/hierarchy-utils";
-import EditPage from "./EditPage.vue";
 
 @Component
 export default class NavBar extends Vue {
