@@ -7,7 +7,7 @@
       :app-id="app_id"
     />
 
-    <v-card color="grey lighten-4" flat tile>
+    <v-card color="grey lighten-4" flat tile class="pa-md-4 mx-lg-auto">
       <v-toolbar dense>
         <v-toolbar-title v-bind:value="page_path"
           >{{ page_path }}
@@ -26,7 +26,7 @@
         </v-btn>
       </v-toolbar>
     </v-card>
-    <!-- <v-navigation-drawer app clipped>Navigation Lists</v-navigation-drawer> -->
+
     <nav-bar
       @StartEdit="StartEdit"
       :user-id="user_id"
@@ -34,6 +34,7 @@
       :app-name="app_name"
       :page-hierarchy="items_folder"
       v-if="ShowNavBar"
+      style=""
     >
     </nav-bar>
     <v-row class="text-center">
@@ -59,15 +60,20 @@
           </v-card-text>
         </v-card>
       </v-col>
-      <v-btn depressed @click="Convert" v-if="show_md && editing"> 変換</v-btn>
+
       <v-col>
-        <v-card color="gray" height="100%">
+        <v-card color="gray" height="100%" class="pa-md-4 mx-lg-auto">
           <v-card-title>Output HTML</v-card-title>
-          <v-card-text v-html="html" filled> </v-card-text>
+
+          <v-card-text class="purehtml" filled v-html="html">
+            <!-- <div class="markdown2html" v-html="html"></div> -->
+          </v-card-text>
         </v-card>
       </v-col>
     </v-row>
     <v-row>
+      <v-spacer></v-spacer>
+      <v-btn depressed @click="Convert" v-if="show_md && editing"> 変換</v-btn>
       <v-spacer></v-spacer>
       <v-btn v-if="show_md && editing" @click="UpdatePage">更新</v-btn>
       <v-btn v-if="show_md && !editing" @click="AddPage">作成</v-btn>
@@ -85,6 +91,8 @@ import AppBar from "./AppBar.vue";
 import PageToolBar from "./ToolBar.vue";
 import { IsExistPage, AddOrUpdate } from "../utils/page-util";
 import { Hierarchy } from "../utils/hierarchy-utils";
+
+import "../assets/style/markdown.css";
 
 const md = new markdownIt();
 md.use(markdownItPlantuml);

@@ -180,8 +180,6 @@ export default class NavBar extends Vue {
   async EditItems(item: Hierarchy) {
     // page_path とその内容を取得して、EditPage.vueに渡す
 
-    // TODO:page_path も取得するようにする
-    // {"page_path":"a/b.md", "md":"#test"}
     if (item.id === undefined) {
       alert("編集できません");
       return;
