@@ -1,5 +1,5 @@
 <template>
-  <v-container>
+  <v-container style="height: 100%">
     <app-bar
       @GivePagePath="GetPagePath"
       @New="SetNew"
@@ -38,23 +38,14 @@
     >
     </nav-bar>
     <v-row class="text-center">
-      <!-- <v-col cols="12">
-        <v-img
-          :src="require('../assets/logo.svg')"
-          class="my-3"
-          contain
-          height="200"
-        />
-      </v-col> -->
-
       <v-col v-if="show_md">
-        <v-card>
+        <v-card class="overflow-y-auto" max-height="100%">
           <v-card-title> Input Markdown </v-card-title>
-          <v-card-text>
+          <v-card-text style="height: 70vh">
             <v-textarea
-              filled
-              auto-grow
               v-model="markdown"
+              auto-grow
+              solo
               height="100%"
             ></v-textarea>
           </v-card-text>
@@ -62,11 +53,14 @@
       </v-col>
 
       <v-col>
-        <v-card color="gray" height="100%" class="pa-md-4 mx-lg-auto">
+        <v-card class="overflow-y-auto" max-height="100%">
           <v-card-title>Output HTML</v-card-title>
-
-          <v-card-text class="purehtml" filled v-html="html">
-            <!-- <div class="markdown2html" v-html="html"></div> -->
+          <v-card-text
+            class="purehtml"
+            filled
+            v-html="html"
+            style="height: 70vh"
+          >
           </v-card-text>
         </v-card>
       </v-col>
