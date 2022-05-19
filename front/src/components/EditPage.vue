@@ -37,31 +37,19 @@
       style=""
     >
     </nav-bar>
-    <v-row class="text-center">
+    <v-row>
       <v-col v-if="show_md">
-        <v-card class="overflow-y-auto" max-height="100%">
-          <v-card-title> Input Markdown </v-card-title>
-          <v-card-text style="height: 70vh">
-            <v-textarea
-              v-model="markdown"
-              auto-grow
-              solo
-              height="100%"
-            ></v-textarea>
-          </v-card-text>
-        </v-card>
+        <vue-simplemde
+          v-model="markdown"
+          ref="markdownEditor"
+          :configs="md_configs"
+        />
       </v-col>
 
       <v-col>
-        <v-card class="overflow-y-auto" max-height="100%">
+        <v-card class="overflow-y-auto" v-if="html !== ''">
           <v-card-title>Output HTML</v-card-title>
-          <v-card-text
-            class="purehtml"
-            filled
-            v-html="html"
-            style="height: 70vh"
-          >
-          </v-card-text>
+          <v-card-text class="purehtml" filled v-html="html"> </v-card-text>
         </v-card>
       </v-col>
     </v-row>
@@ -69,8 +57,12 @@
       <v-spacer></v-spacer>
       <v-btn depressed @click="Convert" v-if="show_md && editing"> 変換</v-btn>
       <v-spacer></v-spacer>
-      <v-btn v-if="show_md && editing" @click="UpdatePage">更新</v-btn>
-      <v-btn v-if="show_md && !editing" @click="AddPage">作成</v-btn>
+      <v-btn v-if="page_path !== '/' && show_md && editing" @click="UpdatePage"
+        >更新</v-btn
+      >
+      <v-btn v-if="page_path !== '/' && show_md && !editing" @click="AddPage"
+        >作成</v-btn
+      >
       <v-spacer></v-spacer>
     </v-row>
   </v-container>
@@ -78,6 +70,7 @@
 
 <script lang="ts">
 import { Vue, Component, Prop } from "vue-property-decorator";
+import VueSimplemde from "vue-simplemde";
 import markdownIt from "markdown-it";
 import markdownItPlantuml from "markdown-it-plantuml";
 import NavBar from "./NavigationBar.vue";
@@ -87,6 +80,8 @@ import { IsExistPage, AddOrUpdate } from "../utils/page-util";
 import { Hierarchy } from "../utils/hierarchy-utils";
 
 import "../assets/style/markdown.css";
+import "../assets/style/simplemde.min.css";
+import "github-markdown-css";
 
 const md = new markdownIt();
 md.use(markdownItPlantuml);
@@ -96,19 +91,16 @@ md.use(markdownItPlantuml);
     AppBar,
     NavBar,
     PageToolBar,
+    VueSimplemde,
   },
 })
 export default class EditPage extends Vue {
-  // @Prop()
-  //   page_path!: string;
   @Prop({ type: Number, default: 0 })
   app_id!: number;
   @Prop({ type: Number, default: 0 })
   user_id!: number;
   @Prop({ type: String, default: "app" })
   app_name!: string;
-  // @Prop({default: ()=>[]})
-  //   items_folder!:Hierarchy[];
 
   page_path = "/";
   // 更新/作成ボタンの切り替え制御フラグ
@@ -118,6 +110,30 @@ export default class EditPage extends Vue {
   markdown = "";
   html = "";
   ShowNavBar = true;
+
+  // simplemde のconfig
+  md_configs = {
+    spellChecker: false,
+    toolbar: [
+      "bold",
+      "italic",
+      "heading",
+      "heading-smaller",
+      "heading-bigger",
+      "|",
+      "code",
+      "quote",
+      "link",
+      "|",
+      "unordered-list",
+      "ordered-list",
+      "table",
+      "horizontal-rule",
+      "|",
+      "guide",
+    ],
+  };
+
   items_folder: Hierarchy[] = [
     {
       app_id: this.app_id,
@@ -132,7 +148,6 @@ export default class EditPage extends Vue {
     this.app_id = 0;
     this.app_name = "app";
     // end
-    // this.items_folder =  [{app_id:this.app_id, name: this.app_name,depth:1,id:undefined, children:[]}];
   }
 
   // 画面右上のEditボタンを押したときに呼ばれる。
@@ -154,6 +169,7 @@ export default class EditPage extends Vue {
     this.editing = true;
   }
 
+  // nav-barに表示される頁構造を更新する
   UpdatePages() {
     this.ShowNavBar = false;
     this.$nextTick(() => (this.ShowNavBar = true));
@@ -166,12 +182,9 @@ export default class EditPage extends Vue {
     this.page_path = page_path;
   }
 
+  //markdown 入力欄に入力されているデータをhtmlに変換する
   Convert() {
     this.html = md.render(this.markdown);
-  }
-
-  GetFilePath(app_id: number, page_path: string): string {
-    return page_path;
   }
 
   SetNew() {
