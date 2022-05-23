@@ -1,16 +1,16 @@
 <template>
-  <edit-page />
+  <login-form />
 </template>
 
 <script lang="ts">
 import Vue from "vue";
-import EditPage from "../components/EditPage.vue";
+import LoginForm from "../components/LoginForm.vue";
 
 export default Vue.extend({
-  name: "Home",
+  name: "Login",
   // todo: $route.params などでuser_id, app_id をedit-page に渡す。
   components: {
-    EditPage,
+    LoginForm,
   },
 });
 </script>
