@@ -14,6 +14,9 @@ use tracing_subscriber::fmt;
 pub mod models;
 use crate::models::{schemas::*, utils::*};
 
+pub mod users;
+use crate::users::auth::*;
+
 #[tokio::main]
 async fn main() {
     // initing
@@ -32,6 +35,7 @@ async fn main() {
         .route("/get_hierarchy", post(get_hierarchy))
         .route("/add", post(register_page))
         .route("/edit", post(get_page))
+        .route("/login", post(login))
         .route("/delete", post(delete_page));
 
     // run our app with hyper
@@ -131,4 +135,19 @@ async fn get_page(extract::Json(hierarchy_id): extract::Json<HierarchyID>) -> ex
             md: String::from(""),
         })
     }
+}
+
+// loginに使うstruct
+#[derive(Serialize, Deserialize, Debug)]
+
+struct LoginInfo {
+    mailaddress: String,
+    password: String,
+}
+
+// id,pass に該当があればtrue,なければfalse
+async fn login(extract::Json(info): extract::Json<LoginInfo>) -> extract::Json<bool> {
+    let pool = get_conn().await;
+    let canlogin = find_user(&pool, info.mailaddress, info.password).await;
+    Json(canlogin)
 }

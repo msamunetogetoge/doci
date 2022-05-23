@@ -1,14 +1,21 @@
 import Vue from 'vue'
 import VueRouter, { RouteConfig } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import DocView from '../views/DocView.vue'
+import LoginView from '../views/LoginView.vue'
+import store from '@/store/index';
 
 Vue.use(VueRouter)
 
 const routes: Array<RouteConfig> = [
   {
     path: '/',
-    name: 'home',
-    component: HomeView
+    name: 'login',
+    component: LoginView
+  },
+  {
+    path: '/doc',
+    name: 'doc',
+    component: DocView
   },
   {
     path: '/about',
@@ -24,6 +31,15 @@ const router = new VueRouter({
   mode: 'history',
   base: process.env.BASE_URL,
   routes
+})
+
+router.beforeEach((to, from, next) => {
+  if (to.name !== 'login' && !store.state.login_state) {
+    next({ name: 'login' })
+  }
+  else {
+    next()
+  }
 })
 
 export default router

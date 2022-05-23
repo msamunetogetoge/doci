@@ -9,7 +9,8 @@ CREATE TABLE users (
   admin_flag smallint default 0,
   created_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
-  PRIMARY KEY(id,mail_address)
+  PRIMARY KEY(id),
+  UNNIQE (mail_address)
 );
 
 --- group table 
