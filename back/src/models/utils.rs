@@ -2,10 +2,7 @@ use crate::models::schemas::*;
 use dotenv::dotenv;
 // use serde::{de::value::StrDeserializer, Deserialize, Serialize};
 use sqlx::{postgres::PgPool, Row};
-use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
-};
+use std::{env, fs, io, path::Path};
 
 /**
 ページ階層構造から、app_id を取り出す

@@ -3,6 +3,7 @@ import VueRouter, { RouteConfig } from 'vue-router'
 import DocView from '../views/DocView.vue'
 import LoginView from '../views/LoginView.vue'
 import store from '@/store/index';
+import SignUpView from "../views/SignUpView.vue"
 
 Vue.use(VueRouter)
 
@@ -11,6 +12,11 @@ const routes: Array<RouteConfig> = [
     path: '/',
     name: 'login',
     component: LoginView
+  },
+  {
+    path: '/signup',
+    name: 'signup',
+    component: SignUpView
   },
   {
     path: '/doc',
@@ -34,7 +40,7 @@ const router = new VueRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  if (to.name !== 'login' && !store.state.login_state) {
+  if ((to.name !== 'login' && to.name !== 'signup') && !store.state.login_state) {
     next({ name: 'login' })
   }
   else {
