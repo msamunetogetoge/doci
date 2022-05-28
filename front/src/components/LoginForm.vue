@@ -11,7 +11,7 @@
           <v-text-field
             v-model="id"
             :rules="idRules"
-            label="ID"
+            label="E-MAIL"
             required
           ></v-text-field>
           <v-text-field
@@ -31,6 +31,7 @@
           >
             Login
           </v-btn>
+          <v-btn color="indigo" class="mr-4" @click="signUp"> SignUp </v-btn>
         </v-form>
       </v-card-text>
     </v-card>
@@ -38,14 +39,14 @@
 </template>
 <script lang="ts">
 import { Vue, Component } from "vue-property-decorator";
-import { login } from "../utils/login-util";
+import { login } from "../utils/auth-util";
 
 @Component
 export default class LoginForm extends Vue {
   valid = true;
   display_error = false;
   id = "";
-  idRules = [(v: string) => !!v || "ID is required"];
+  idRules = [(v: string) => !!v || "E-MAIL is required"];
   pass = "";
   passRules = [(v: string) => !!v || "PASSWORD is required"];
 
@@ -56,6 +57,11 @@ export default class LoginForm extends Vue {
   displayError() {
     this.display_error = true;
   }
+
+  signUp() {
+    this.$router.push("/signup");
+  }
+
   async tryLogin() {
     let success = await login(this.id, this.pass);
     if (success) {

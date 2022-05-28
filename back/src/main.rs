@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     response,
     response::IntoResponse,
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -36,6 +36,8 @@ async fn main() {
         .route("/add", post(register_page))
         .route("/edit", post(get_page))
         .route("/login", post(login))
+        .route("/user", post(add_user))
+        .route("/user", put(edit_user_info))
         .route("/delete", post(delete_page));
 
     // run our app with hyper
@@ -150,4 +152,24 @@ async fn login(extract::Json(info): extract::Json<LoginInfo>) -> extract::Json<b
     let pool = get_conn().await;
     let canlogin = find_user(&pool, info.mailaddress, info.password).await;
     Json(canlogin)
+}
+
+// dbにユーザーを登録する
+async fn add_user(extract::Json(user): extract::Json<UserInfo>) -> impl IntoResponse {
+    let pool = get_conn().await;
+    if let Err(e) = signup_user(&pool, user).await {
+        tracing::error!("In add_usererror occured:{}", e);
+        return StatusCode::BAD_REQUEST;
+    };
+    StatusCode::CREATED
+}
+
+// ユーザー情報を編集する
+async fn edit_user_info(extract::Json(user): extract::Json<UserInfo>) -> impl IntoResponse {
+    let pool = get_conn().await;
+    if let Err(e) = edit_user(&pool, user).await {
+        tracing::error!("In edit_user_info error occured:{}", e);
+        return StatusCode::BAD_REQUEST;
+    };
+    StatusCode::ACCEPTED
 }

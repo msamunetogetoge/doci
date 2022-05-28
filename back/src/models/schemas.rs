@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{env, fs, io, path::{Path,PathBuf}};
+use std::{
+    env, fs, io,
+    path::{Path, PathBuf},
+};
 
 /// users table
 #[derive(sqlx::FromRow)]
@@ -11,45 +14,45 @@ pub struct Users {
 }
 
 #[derive(Serialize, Debug)]
-pub enum Children{
+pub enum Children {
     EmptyChild,
-    Child(Box<Hierarchy>)
+    Child(Box<Hierarchy>),
 }
 
-#[derive(sqlx::FromRow,Serialize, Debug)]
+#[derive(sqlx::FromRow, Serialize, Debug)]
 pub struct Hierarchy {
-    pub id:i64,
+    pub id: i64,
     pub app_id: i64,
     pub child_path: String,
     pub depth: i32,
 }
 
-#[derive(sqlx::FromRow,Serialize, Debug)]
+#[derive(sqlx::FromRow, Serialize, Debug)]
 pub struct HierarchyTS {
-    pub id:i64,
+    pub id: i64,
     pub app_id: i64,
     pub name: String,
     pub depth: i32,
     pub children: Option<Vec<Children>>,
 }
-impl Hierarchy{
-    pub fn into_ts(self) -> HierarchyTS{
+impl Hierarchy {
+    pub fn into_ts(self) -> HierarchyTS {
         let path = Path::new(&self.child_path);
-        if path.extension() != None && path.extension().unwrap() == "md"{
-            HierarchyTS{
-                id:self.id,
+        if path.extension() != None && path.extension().unwrap() == "md" {
+            HierarchyTS {
+                id: self.id,
                 app_id: self.app_id,
                 name: self.child_path,
                 depth: self.depth,
-                children: None
+                children: None,
             }
-        }else{
-            HierarchyTS{
-                id:self.id,
+        } else {
+            HierarchyTS {
+                id: self.id,
                 app_id: self.app_id,
                 name: self.child_path,
                 depth: self.depth,
-                children: Some(Vec::new())
+                children: Some(Vec::new()),
             }
         }
     }
@@ -83,20 +86,23 @@ impl WebPageInfo {
     pub fn create_file_path(&self) -> String {
         let folder_path = env::current_dir().unwrap().join(Path::new("md"));
         let mut file_path = self.app_id.to_string();
-        
+
         let split = self.page_path.split('/');
 
         for path in split {
-            if path =="".to_string(){
+            if path == "".to_string() {
                 continue;
             }
             file_path += "@";
             file_path += path;
-
         }
         let mut _file_path = PathBuf::from(file_path);
         _file_path.set_extension("md");
-        file_path = folder_path.join(_file_path.as_path()).to_str().unwrap().to_string();
+        file_path = folder_path
+            .join(_file_path.as_path())
+            .to_str()
+            .unwrap()
+            .to_string();
 
         file_path
     }
@@ -104,12 +110,11 @@ impl WebPageInfo {
     /**
     pagepath に .md が付いていなかったら追加して返す
     */
-    pub fn get_page_path(&self) -> String{
+    pub fn get_page_path(&self) -> String {
         let mut page_path = PathBuf::new();
         page_path.push(&self.page_path);
         page_path.set_extension("md");
         return page_path.as_path().to_str().unwrap().to_string();
-        
     }
 
     /**
