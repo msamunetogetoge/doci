@@ -1,17 +1,13 @@
 <template>
   <v-container fill-height>
-    <v-card
-      class="rounded-lg mx-auto"
-      color="blue-grey lighten-4"
-      min-width="300"
-    >
+    <v-card class="rounded-lg mx-auto" min-width="300">
       <v-card-title> Login </v-card-title>
       <v-card-text>
         <v-form ref="form" v-model="valid" lazy-validation>
           <v-text-field
             v-model="id"
             :rules="idRules"
-            label="E-MAIL"
+            label="USERNAME"
             required
           ></v-text-field>
           <v-text-field
@@ -31,7 +27,7 @@
           >
             Login
           </v-btn>
-          <v-btn color="indigo" class="mr-4" @click="signUp"> SignUp </v-btn>
+          <v-btn color="primary" class="mr-4" @click="signUp"> SignUp </v-btn>
         </v-form>
       </v-card-text>
     </v-card>
@@ -39,7 +35,7 @@
 </template>
 <script lang="ts">
 import { Vue, Component } from "vue-property-decorator";
-import { login } from "../utils/auth-util";
+import { login, get_user } from "../utils/auth-util";
 
 @Component
 export default class LoginForm extends Vue {
@@ -67,11 +63,15 @@ export default class LoginForm extends Vue {
     if (success) {
       this.$store.dispatch("login_state_ok");
       this.display_error = false;
+      // success ==true => storeにname, idをセットしてユーザーページに飛ばす
+      let user = await get_user(this.id);
+      this.$store.dispatch("set_user_id", user.user_id);
+      this.$store.dispatch("set_user_name", user.username);
+      this.$router.push("user");
     } else {
       this.$store.dispatch("login_state_no");
       this.displayError();
     }
-    this.$router.push("/doc");
   }
 }
 </script>

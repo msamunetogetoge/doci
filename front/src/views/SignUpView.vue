@@ -8,7 +8,6 @@ import SignUpForm from "../components/SignUpForm.vue";
 
 export default Vue.extend({
   name: "SignUp",
-  // todo: $route.params などでuser_id, app_id をedit-page に渡す。
   components: {
     SignUpForm,
   },

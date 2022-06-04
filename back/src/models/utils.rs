@@ -250,7 +250,10 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     let file_path = &page.create_file_path();
     let page_path = &page.get_page_path();
 
-    if let Ok(_) = get_web_page(pool, page.app_id, &page.page_path).await {
+    if get_web_page(pool, page.app_id, &page.page_path)
+        .await
+        .is_ok()
+    {
         // 既にデータが存在するので、ファイルを更新する
         let page_data = page.page_data.as_ref().unwrap();
         if let Err(err) = fs::write(&file_path, page_data) {

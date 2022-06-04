@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import VueRouter, { RouteConfig } from 'vue-router'
 import DocView from '../views/DocView.vue'
+import UserView from '../views/UserView.vue'
 import LoginView from '../views/LoginView.vue'
 import store from '@/store/index';
 import SignUpView from "../views/SignUpView.vue"
@@ -22,6 +23,11 @@ const routes: Array<RouteConfig> = [
     path: '/doc',
     name: 'doc',
     component: DocView
+  },
+  {
+    path: '/user',
+    name: 'user',
+    component: UserView
   },
   {
     path: '/about',

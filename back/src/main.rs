@@ -36,6 +36,7 @@ async fn main() {
         .route("/add", post(register_page))
         .route("/edit", post(get_page))
         .route("/login", post(login))
+        .route("/user/:user_name", get(get_user))
         .route("/user", post(add_user))
         .route("/user", put(edit_user_info))
         .route("/delete", post(delete_page));
@@ -74,7 +75,6 @@ async fn register_page(extract::Json(page_info): extract::Json<WebPageInfo>) -> 
     match page {
         Ok(()) => StatusCode::CREATED,
         Err(err) => {
-            println!("{}", err.to_string());
             tracing::error!("{}", err.to_string());
             StatusCode::INTERNAL_SERVER_ERROR
         }
@@ -108,8 +108,7 @@ struct HierarchyID {
 async fn delete_page(extract::Json(hierarchy_id): extract::Json<HierarchyID>) -> impl IntoResponse {
     let pool = get_conn().await;
     if let Err(err) = delete_pages(&pool, hierarchy_id.id).await {
-        tracing::info!("In delete_page error occured:{}", err);
-        println!("{}", err.to_string());
+        tracing::error!("In delete_page error occured:{}", err);
         return StatusCode::INTERNAL_SERVER_ERROR;
     };
     StatusCode::ACCEPTED
@@ -143,21 +142,28 @@ async fn get_page(extract::Json(hierarchy_id): extract::Json<HierarchyID>) -> ex
 #[derive(Serialize, Deserialize, Debug)]
 
 struct LoginInfo {
-    mailaddress: String,
+    username: String,
     password: String,
 }
 
 // id,pass に該当があればtrue,なければfalse
 async fn login(extract::Json(info): extract::Json<LoginInfo>) -> extract::Json<bool> {
     let pool = get_conn().await;
-    let canlogin = find_user(&pool, info.mailaddress, info.password).await;
+    let user_info = UserInfo {
+        userid: None,
+        username: info.username,
+        password: Some(info.password),
+        mailaddress: None,
+    };
+    let canlogin = user_info.find_user(&pool).await;
     Json(canlogin)
 }
 
 // dbにユーザーを登録する
 async fn add_user(extract::Json(user): extract::Json<UserInfo>) -> impl IntoResponse {
     let pool = get_conn().await;
-    if let Err(e) = signup_user(&pool, user).await {
+
+    if let Err(e) = user.signup_user(&pool).await {
         tracing::error!("In add_usererror occured:{}", e);
         return StatusCode::BAD_REQUEST;
     };
@@ -167,9 +173,34 @@ async fn add_user(extract::Json(user): extract::Json<UserInfo>) -> impl IntoResp
 // ユーザー情報を編集する
 async fn edit_user_info(extract::Json(user): extract::Json<UserInfo>) -> impl IntoResponse {
     let pool = get_conn().await;
-    if let Err(e) = edit_user(&pool, user).await {
+    if let Err(e) = user.edit_user(&pool).await {
         tracing::error!("In edit_user_info error occured:{}", e);
         return StatusCode::BAD_REQUEST;
     };
     StatusCode::ACCEPTED
+}
+
+// username からユーザー情報を検索する。
+// もしもエラーが起きたらusernameだけ入ったデータを返す
+async fn get_user(extract::Path(user_name): extract::Path<String>) -> extract::Json<UserInfo> {
+    let pool = get_conn().await;
+    let user_info = UserInfo {
+        userid: None,
+        username: user_name,
+        mailaddress: None,
+        password: None,
+    };
+    let user = user_info.get_user_info_from_name(&pool).await;
+    match user {
+        Ok(x) => Json(x),
+        Err(e) => {
+            tracing::error!("In get_user_info error occured:{}", e);
+            Json(UserInfo {
+                userid: None,
+                username: user_info.username,
+                password: Some("".to_string()),
+                mailaddress: Some("".to_string()),
+            })
+        }
+    }
 }

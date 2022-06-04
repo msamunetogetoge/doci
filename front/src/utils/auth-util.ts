@@ -1,9 +1,9 @@
 import axios, { AxiosResponse, AxiosError } from "axios"
 
-export async function login(mail_address: string, pass: string): Promise<boolean> {
+export async function login(username: string, pass: string): Promise<boolean> {
     let success = false;
     await axios.post("/login", {
-        mailaddress: mail_address,
+        username: username,
         password: pass,
     })
         .then(function (response: AxiosResponse<boolean>) {
@@ -17,15 +17,23 @@ export async function login(mail_address: string, pass: string): Promise<boolean
 }
 
 export interface UserInfo {
-    name: string,
-    password: string,
-    mailaddress: string,
+    user_id?: number;
+    username: string;
+    password?: string;
+    mailaddress?: string;
 }
 
-export async function signup_user(name: string, mail_address: string, pass: string): Promise<boolean> {
+export function isUserInfo(item: any): item is UserInfo {
+    return item.username !== undefined;
+}
+
+
+// ユーザー情報を新規登録する。
+// もしも同じusernameが使われていたらfalseを返す
+export async function signup_user(username: string, mail_address: string, pass: string): Promise<boolean> {
     let success = false;
     const user: UserInfo = {
-        name: name,
+        username: username,
         password: pass,
         mailaddress: mail_address
     };
@@ -42,10 +50,12 @@ export async function signup_user(name: string, mail_address: string, pass: stri
     return success;
 }
 
-export async function edit_user(name: string, mail_address: string, pass: string): Promise<boolean> {
+// ユーザー情報を編集する。
+// 失敗したらfalseを返す
+export async function edit_user(username: string, mail_address: string, pass: string): Promise<boolean> {
     let success = false;
     const user: UserInfo = {
-        name: name,
+        username: username,
         password: pass,
         mailaddress: mail_address
     };
@@ -60,4 +70,20 @@ export async function edit_user(name: string, mail_address: string, pass: string
         });
 
     return success;
+}
+
+// userusernameからデータを取得する
+// 失敗した時は、usernameのみを返す
+export async function get_user(username: string): Promise<UserInfo> {
+    let res: UserInfo = {
+        username: username,
+    };
+    const url = "user" + "/" + username;
+    await axios.get(url).then(function (response: AxiosResponse<UserInfo>) {
+        res = response.data;
+
+    }).catch(function (response: AxiosError) {
+        console.log(response.message);
+    })
+    return res;
 }

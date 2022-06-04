@@ -90,7 +90,7 @@ impl WebPageInfo {
         let split = self.page_path.split('/');
 
         for path in split {
-            if path == "".to_string() {
+            if path.is_empty() {
                 continue;
             }
             file_path += "@";
