@@ -27,8 +27,8 @@ CREATE TABLE members (
 --- application table
 CREATE TABLE applications (
   id    BIGSERIAL NOT NULL, 
-  group_id bigint NOT NULL,
   name   VARCHAR(255) NOT NULL,
+  created_by bigint NOT NULL, --- users.id
   created_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
   PRIMARY KEY(id)
