@@ -62,7 +62,7 @@ impl Hierarchy {
 web_pages table
 file_pathはmd@app_id@hoge@hige@huga.md の形に成形して格納する(/ -> @ の置換)
 */
-#[derive(sqlx::FromRow, Debug)]
+#[derive(sqlx::FromRow, Debug, Serialize)]
 pub struct WebPages {
     pub app_id: i64,
     pub page_path: String,
@@ -70,6 +70,7 @@ pub struct WebPages {
 }
 
 // post from client, document infomation
+// dbのweb_pagesのデータ(WebPages.file_pathの中身=page_data)をやり取りするのに使う
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WebPageInfo {
     pub app_id: i64,

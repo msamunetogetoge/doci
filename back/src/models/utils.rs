@@ -1,6 +1,5 @@
 use crate::models::schemas::*;
 use dotenv::dotenv;
-// use serde::{de::value::StrDeserializer, Deserialize, Serialize};
 use sqlx::{postgres::PgPool, Row};
 use std::{env, fs, io, path::Path};
 
@@ -19,7 +18,8 @@ pub fn get_app_id(pages: &[PageHierarchy]) -> i64 {
     }
 }
 
-// Markdownを補完するディレクトリを作成する
+/// Markdownを保管するディレクトリを作成する
+/// GCPかgoggleドライブ上に作成する予定なので、要変更
 pub fn models_init() {
     let folder_path = env::current_dir().unwrap().join(Path::new("md"));
 
@@ -102,14 +102,14 @@ pub async fn get_page_structure_from_id(pool: &PgPool, id: i64) -> Vec<Hierarchy
     pages.into_iter().map(|x| x.into_ts()).collect()
 }
 
-// get_page_path で使うためのストラクト
+/// get_page_path で使うためのストラクト
 #[derive(sqlx::FromRow)]
 struct ChildPath {
     child_path: String,
 }
 
-// もらったpage_hierarchy のSerial で、祖先までのページパス(app/hoge/hogege.md など)を取得する。
-// パスは、'/'区切り
+/// もらったpage_hierarchy のSerial で、祖先までのページパス(app/hoge/hogege.md など)を取得する。
+/// パスは、'/'区切り
 pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String {
     // let mut url = PathBuf::from("");
     let mut url = String::from("");
@@ -140,15 +140,15 @@ pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String {
     url
 }
 
-// delete_pagesで使うためのストラクト
+/// delete_pagesで使うためのストラクト
 #[derive(sqlx::FromRow)]
 struct HierarchyId {
     id: i64,
     child_path: String,
 }
 
-// もらったparent_pathの子どものpage_hierarchy, web_pagesのデータ、マークダウンのファイルを削除する
-
+/// もらったparent_pathの子どものpage_hierarchy, web_pagesのデータ、マークダウンのファイルを削除する  
+/// id : page_hierarchy のpkey
 pub async fn delete_pages(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
     let app_id = sqlx::query!(
         r##"SELECT app_id FROM public."page_hierarchy" WHERE id = $1 "##,
@@ -244,8 +244,8 @@ WHERE ph.id = $1
     Ok(tx.commit().await?)
 }
 
-// ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
-// 既にデータが存在する時はupdateファイル更新だけする。
+/// ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
+/// 既にデータが存在する時はupdateファイル更新だけする。
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
     let file_path = &page.create_file_path();
     let page_path = &page.get_page_path();
@@ -332,8 +332,8 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     }
 }
 
-// web_pages からデータを検索する為の情報を、page_hiearachyから取得する。
-// returnのi64 -> app_id, String -> page_path
+/// web_pages からデータを検索する為の情報を、page_hiearachyから取得する。
+/// returnのi64 -> app_id, String -> page_path
 pub async fn get_web_page_info(
     pool: &PgPool,
     hierarchy_id: i64,

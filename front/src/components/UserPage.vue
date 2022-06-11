@@ -16,6 +16,7 @@
                 :items="created_doc"
                 :items-per-page="5"
                 class="elevation-1"
+                hide-default-footer
               >
               </v-data-table>
             </v-card-text>
@@ -57,7 +58,11 @@
                 <v-container>
                   <v-row>
                     <v-col cols="12" sm="6" md="4">
-                      <v-text-field label="app name" required></v-text-field>
+                      <v-text-field
+                        label="app name"
+                        required
+                        v-model="app_name"
+                      ></v-text-field>
                     </v-col>
                     <!-- groupmember を追加するフォームを後で作る -->
                     <!-- <v-col cols="12" sm="6" md="4">
@@ -75,7 +80,7 @@
                 <v-btn color="blue darken-1" text @click="dialog = false">
                   Close
                 </v-btn>
-                <v-btn color="blue darken-1" text @click="dialog = false">
+                <v-btn color="blue darken-1" text @click="tryCreateDoc">
                   Create
                 </v-btn>
               </v-card-actions>
@@ -94,6 +99,7 @@ import {
   get_created_app_doc,
   get_joined_app_doc,
   appinfo,
+  try_create_doc,
 } from "../utils/app-util";
 
 @Component
@@ -121,6 +127,7 @@ export default class UserPage extends Vue {
 
   user_name = "";
   user_id = 0;
+  app_name="",
 
   // computed() {}
   async mounted() {
@@ -133,8 +140,13 @@ export default class UserPage extends Vue {
 
     this.created_doc = await get_created_app_doc(this.user_id);
   }
-  async create_doc() {
-    return;
+  async tryCreateDoc() {
+    const success = await try_create_doc(this.user_id, this.app_name);
+    if (success) {
+      this.created_doc = await get_created_app_doc(this.user_id);
+    } else {
+      alert("作成に失敗しました。");
+    }
   }
 }
 </script>

@@ -1,4 +1,4 @@
-import axios, { AxiosResponse } from "axios"
+import axios, { AxiosError, AxiosResponse } from "axios"
 import { Hierarchy } from "./hierarchy-utils";
 
 
@@ -9,7 +9,7 @@ export interface Page {
 }
 // backend側にデータを保存してもらい、成功したらナビゲーションバーにパスを追加する
 export async function AddOrUpdate(app_id: number, page_path: string, data: string): Promise<void> {
-    await axios.post("/add", {
+    await axios.post("/page", {
         app_id: app_id,
         page_path: page_path,
         page_data: data,
@@ -23,24 +23,16 @@ export async function AddOrUpdate(app_id: number, page_path: string, data: strin
 
 }
 
-// まだ使うかわからない
-// export function AddPathData(app_id: number, page_path: string) {
-//     console.log("Add new page path to Navigation Bar ");
-// }
-
 // dbからデータを削除する
 // 成功->true ,失敗->false
 export async function DeletePages(data: Hierarchy): Promise<boolean> {
     let success = false;
-    console.log("In DeletePages data id = ");
-    console.log(data.id);
     if (data.id === undefined) {
         return success;
     }
     else {
-        await axios.post("/delete", {
-            id: data.id
-        },
+        const url = "/page" + "/" + data.id.toString();
+        await axios.delete(url,
         ).then(() => {
             success = true;
         }).catch(() => {
@@ -55,9 +47,8 @@ export async function DeletePages(data: Hierarchy): Promise<boolean> {
 // page_hierarchyのidからpage_pathとmdの内容を取得する
 export async function GetPage(id: number): Promise<Page> {
     let res: Page = { page_path: "", md: "" };
-    await axios.post("/edit", {
-        id: id
-    },
+    const url = "/page" + "/" + id.toString();
+    await axios.get(url,
     ).then((response: AxiosResponse<Page>) => {
         res = response.data
         return response.data
@@ -73,15 +64,15 @@ export async function GetPage(id: number): Promise<Page> {
 // 存在する -> true
 export async function IsExistPage(app_id: number, page_path: string): Promise<boolean> {
     let is_exist = false;
-    await axios.post("/check", {
-        app_id: app_id,
-        page_path: page_path,
-    })
-        .then(function (response: AxiosResponse<boolean>) {
-            is_exist = response.data;
-        })
-        .catch(function (response) {
+    const url = "/doc" + "/" + app_id.toString() + "/page_path" + "/" + page_path;
+    await axios.get(url)
+        .then(function () {
             is_exist = true;
+        })
+        .catch(function (response: AxiosError) {
+            console.error(response.code + response.message);
+
+            is_exist = false;
         }).finally(() => {
             return is_exist;
         });

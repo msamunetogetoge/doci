@@ -2,17 +2,28 @@ use sqlx::postgres::PgPool;
 
 use serde::{Deserialize, Serialize};
 
-use std::io::{Error, ErrorKind};
+use crate::errors::original_error;
 
-#[derive(Serialize, Deserialize)]
+/// front側と通信する時に使うストラクト
+/// ユーザーデータを格納する
+#[derive(Serialize, Deserialize, Default)]
 pub struct UserInfo {
+    /// users.id
     pub userid: Option<i64>,
+    /// users.username
     pub username: String,
+    /// users.password
     pub password: Option<String>,
+    /// users.mail_address
     pub mailaddress: Option<String>,
 }
 
 impl UserInfo {
+    pub fn check_password(&self) -> bool {
+        self.password == None || self.password == Some("".to_string())
+    }
+
+    /// すでにユーザーデータが存在すればtrue
     pub async fn check_user(&self, pool: &PgPool) -> bool {
         sqlx::query!(
             r##"SELECT id FROM public."users" WHERE name=$1"##,
@@ -23,37 +34,15 @@ impl UserInfo {
         .is_ok()
     }
 
-    // nameとpasswordからユーザーを検索する。
-    // UserInfoにパスワードが格納されていない時はfalse
-    // 一つだけデータが取得出来たらtrue, そうでないときはfalseを返す。
-    pub async fn find_user(&self, pool: &PgPool) -> bool {
-        if self.password == None {
-            println!("find_user にpassword がないデータが投入された");
-            false
-        } else {
-            sqlx::query!(
-                r##"SELECT id, mail_address, password FROM public."users" WHERE name=$1 and password=$2"##,
-                self.username,
-                self.password.as_ref().unwrap()
-            )
-            .fetch_one(pool)
-            .await
-            .is_ok()
-        }
-    }
-
-    // nameに被りが無ければユーザー登録する。
-    // passwordが無ければエラーを返す
-    // ユーザー登録に成功すればtrue, 失敗すればfalse
+    /// usernameに被りが無ければユーザー登録する。
+    /// passwordが無ければエラーを返す
+    /// ユーザー登録に成功すればOk(()), 失敗すればerror
     pub async fn signup_user(&self, pool: &PgPool) -> Result<(), sqlx::Error> {
-        let non_password_error = Error::new(ErrorKind::Other, "password is required.");
-        if self.password == None {
-            return Err(sqlx::Error::Io(non_password_error));
+        if self.check_password() {
+            return Err(original_error::non_password_error().error);
         }
-
-        let found_same_name_error = Error::new(ErrorKind::Other, "found same name user.");
         if self.check_user(pool).await {
-            return Err(sqlx::Error::Io(found_same_name_error));
+            return Err(original_error::found_same_name_error().error);
         }
         // transaction start
         let mut tx = pool.begin().await?;
@@ -75,9 +64,9 @@ impl UserInfo {
         Ok(())
         // transaction end
     }
-    // ユーザー登録情報を編集する。
-    // usernameは変えれない。
-    // 失敗した時はエラーを返す
+    /// ユーザー登録情報を編集する。
+    /// usernameは変えれない。
+    /// 失敗した時はエラーを返す
     pub async fn edit_user(&self, pool: &PgPool) -> Result<(), sqlx::Error> {
         let mut tx = pool.begin().await?;
         if let Err(e) = sqlx::query!(
@@ -97,11 +86,11 @@ impl UserInfo {
         Ok(())
     }
 
-    // username で登録車情報を探す
-    // もしも登録されていなかったらエラーを返す。
+    /// username で登録車情報を探す
+    /// もしも登録されていなかったらエラーを返す。
     pub async fn get_user_info_from_name(&self, pool: &PgPool) -> Result<UserInfo, sqlx::Error> {
         let user = sqlx::query!(
-            r##"SELECT id , name , password, mail_address FROM public."users" WHERE name=$1"##,
+            r##"SELECT id , name , mail_address FROM public."users" WHERE name=$1"##,
             self.username,
         )
         .fetch_one(pool)
@@ -109,8 +98,33 @@ impl UserInfo {
         Ok(UserInfo {
             userid: Some(user.id),
             username: user.name,
-            password: Some(user.password),
+            password: None,
             mailaddress: user.mail_address, // DB上では、mail_address はNullable なのでOption<String>が返ってくる
         })
+    }
+}
+
+/// loginに使うstruct
+#[derive(Serialize, Deserialize, Debug)]
+
+pub struct LoginInfo {
+    /// users.username
+    username: String,
+    /// users.password
+    password: String,
+}
+
+impl LoginInfo {
+    /// nameとpasswordからユーザーを検索する。
+    /// 一つだけデータが取得出来たらtrue, そうでないときはfalseを返す。
+    pub async fn can_login(&self, pool: &PgPool) -> bool {
+        sqlx::query!(
+            r##"SELECT id FROM public."users" WHERE name=$1 and password=$2"##,
+            self.username,
+            self.password
+        )
+        .fetch_one(pool)
+        .await
+        .is_ok()
     }
 }
