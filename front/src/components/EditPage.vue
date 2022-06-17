@@ -95,13 +95,17 @@ md.use(markdownItPlantuml);
   },
 })
 export default class EditPage extends Vue {
-  @Prop({ type: Number, default: 0 })
-  app_id!: number;
-  @Prop({ type: Number, default: 0 })
-  user_id!: number;
-  @Prop({ type: String, default: "app" })
-  app_name!: string;
+  // @Prop({ type: Number, default: 0 })
+  // app_id!: number;
+  // @Prop({ type: Number, default: 0 })
+  // user_id!: number;
+  // @Prop({ type: String, default: "app" })
+  // app_name!: string;
 
+  // vuex から created の時に値を渡す
+  app_id = 0;
+  user_id = 0;
+  app_name = "";
   page_path = "/";
   // 更新/作成ボタンの切り替え制御フラグ
   editing = true;
@@ -143,11 +147,11 @@ export default class EditPage extends Vue {
       children: [],
     },
   ];
+  // データをセットする
   created() {
-    // ログイン、アプリ選択時にvue router から値をもらうようになったら削除する start
-    this.app_id = 0;
-    this.app_name = "app";
-    // end
+    this.app_id = this.$store.state.app_id;
+    this.app_name = this.$store.state.app_name;
+    this.user_id = this.$store.state.user_id;
   }
 
   // 画面右上のEditボタンを押したときに呼ばれる。

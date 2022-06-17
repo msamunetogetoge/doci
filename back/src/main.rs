@@ -12,7 +12,7 @@ use std::{fs, net::SocketAddr};
 use tracing_subscriber::fmt;
 
 pub mod models;
-use crate::models::{schemas::*, utils::*};
+use crate::models::{query::*, schemas::*};
 
 pub mod users;
 use crate::users::auth::*;
@@ -38,7 +38,7 @@ async fn main() {
         .route("/get_hierarchy", post(get_hierarchy))
         .route("/page", post(register_page))
         .route("/doc", post(create_doc))
-        .route("/doc/:app_id/path/:page_path", get(try_get_page))
+        .route("/app/:app_id/path/:page_path", get(try_get_page))
         .route("/doc/:user_id", get(get_doc_infos))
         .route("/page/:hierarchy_id", get(get_page))
         .route("/login", post(login))
@@ -66,9 +66,7 @@ async fn root() -> &'static str {
 /// なければNoneを返す
 async fn try_get_page(
     extract::Path((app_id, page_path)): extract::Path<(i64, String)>,
-) -> impl IntoResponse
-// response::Json<Option<WebPages>>
-{
+) -> impl IntoResponse {
     let pool = get_conn().await;
     let web_pages_or_none = get_web_page(&pool, app_id, &page_path).await;
     match web_pages_or_none {
@@ -134,7 +132,9 @@ struct Page {
 ///ファイルを読み込めなかったときは空のデータを返す
 async fn get_page(extract::Path(hierarchy_id): extract::Path<i64>) -> extract::Json<Page> {
     let pool = get_conn().await;
+    tracing::info!("In get_page paramerter = {}", hierarchy_id);
     let (app_id, page_path) = get_web_page_info(&pool, hierarchy_id).await.unwrap();
+    println!("app_id={},page_path={}", app_id, page_path);
     let web_page = get_web_page(&pool, app_id, &page_path).await.unwrap();
     if let Ok(res) = fs::read_to_string(&web_page.file_path) {
         Json(Page {

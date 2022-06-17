@@ -8,6 +8,8 @@ export default new Vuex.Store({
     login_state: false,
     user_id: 0,
     user_name: "",
+    app_id: 0,
+    app_name: "",
   },
   getters: {
   },
@@ -24,6 +26,12 @@ export default new Vuex.Store({
     set_user_name: function (state, name: string) {
       state.user_name = name;
     },
+    set_app_id: function (state, id: number) {
+      state.app_id = id;
+    },
+    set_app_name: function (state, name: string) {
+      state.app_name = name;
+    },
   },
   actions: {
     login_state_ok: function (context) {
@@ -37,6 +45,12 @@ export default new Vuex.Store({
     },
     set_user_name: function (context, name: string) {
       context.commit('set_user_name', name);
+    },
+    set_app_id: function (context, id: number) {
+      context.commit('set_app_id', id);
+    },
+    set_app_name: function (context, name: string) {
+      context.commit('set_app_name', name);
     },
   },
   modules: {

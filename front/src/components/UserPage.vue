@@ -1,6 +1,6 @@
 <template>
-  <v-row dense>
-    <v-card>
+  <v-row dense justify="center" align-content="center">
+    <v-card width="80%">
       <v-card-title> Hello {{ user_name }} </v-card-title>
       <v-card-text>
         <v-col cols="12">
@@ -14,8 +14,8 @@
               <v-data-table
                 :headers="created_header"
                 :items="created_doc"
-                :items-per-page="5"
                 class="elevation-1"
+                @click:row="GoDocPage"
                 hide-default-footer
               >
               </v-data-table>
@@ -73,7 +73,6 @@
                         </v-col> -->
                   </v-row>
                 </v-container>
-                <small>*indicates required field</small>
               </v-card-text>
               <v-card-actions>
                 <v-spacer></v-spacer>
@@ -112,24 +111,36 @@ export default class UserPage extends Vue {
   // Create Doc dialogの表示非表示管理フラグ
   dialog = false;
 
-  // 作成したdocの v- data-table のheader
+  // v-data-table のheader
   created_header = [
-    { text: "Name", value: "name", align: "start" },
-    { text: "CreatedAt", value: "createdat" },
+    // { text: "Id", value: "app_id" },
+    { text: "Name", value: "app_name", align: "start" },
+    // { text: "CreatedBy", value: "created_by" },
+    { text: "CreatedAt", value: "created_at_string" },
   ];
 
-  // 参加しているdocの v- data-table のheader
+  // 参加しているdocの v-data-table のheader
   // joined_header = [
   //   { text: "Name", value: "name", align: "start" },
   //   { text: "CreatedBy", value: "createdby" },
   //   { text: "CreatedAt", value: "createdat" },
   // ];
 
+  // hello user_name と画面に表示される
   user_name = "";
+  // user が作ったドキュメントを検索するのに使う
   user_id = 0;
-  app_name="",
+  // dialog の中で指定される。指定された名前でdocを作成する。
+  app_name = "";
 
-  // computed() {}
+  // ドキュメントのページに遷移する
+  GoDocPage(data: appinfo) {
+    this.$store.dispatch("set_app_id", data.app_id);
+    this.$store.dispatch("set_app_name", data.app_name);
+    this.$router.push("/doc");
+
+    return;
+  }
   async mounted() {
     console.log("This is user-page");
     this.user_id = this.$store.state.user_id;
@@ -140,6 +151,12 @@ export default class UserPage extends Vue {
 
     this.created_doc = await get_created_app_doc(this.user_id);
   }
+  // ドキュメント作成のダイアログを初期化する
+  init_dialog() {
+    this.dialog = false;
+    this.app_name = "";
+  }
+  // ドキュメントを作成し、dialogを初期化する
   async tryCreateDoc() {
     const success = await try_create_doc(this.user_id, this.app_name);
     if (success) {
@@ -147,6 +164,7 @@ export default class UserPage extends Vue {
     } else {
       alert("作成に失敗しました。");
     }
+    this.init_dialog();
   }
 }
 </script>

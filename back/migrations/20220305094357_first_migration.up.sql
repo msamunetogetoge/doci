@@ -31,7 +31,8 @@ CREATE TABLE applications (
   created_by bigint NOT NULL, --- users.id
   created_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
-  PRIMARY KEY(id)
+  PRIMARY KEY(id),
+  UNIQUE(name,created_by)
 );
 
 --- page table

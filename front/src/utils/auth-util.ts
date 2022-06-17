@@ -17,7 +17,7 @@ export async function login(username: string, pass: string): Promise<boolean> {
 }
 
 export interface UserInfo {
-    user_id?: number;
+    userid?: number;
     username: string;
     password?: string;
     mailaddress?: string;

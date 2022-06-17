@@ -131,12 +131,15 @@ pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String {
 
     // app/hoge/abc.md/ の形のString を作る
     for row in pages.iter() {
+        println!("row.child_path= {}", row.child_path);
+
         url.push_str(&row.child_path);
         url.push('/');
+        println!("url= {}", url);
     }
     // 最後の/ は不要なので削除する
     let _ = url.remove(url.len() - 1);
-
+    println!("finally, url= {}", url);
     url
 }
 
@@ -249,6 +252,7 @@ WHERE ph.id = $1
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
     let file_path = &page.create_file_path();
     let page_path = &page.get_page_path();
+    println!("regitering page_path = {}", page_path);
 
     if get_web_page(pool, page.app_id, &page.page_path)
         .await

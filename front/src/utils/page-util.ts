@@ -31,7 +31,7 @@ export async function DeletePages(data: Hierarchy): Promise<boolean> {
         return success;
     }
     else {
-        const url = "/page" + "/" + data.id.toString();
+        const url = "/page" + "/" + data.id;
         await axios.delete(url,
         ).then(() => {
             success = true;
@@ -47,7 +47,7 @@ export async function DeletePages(data: Hierarchy): Promise<boolean> {
 // page_hierarchyのidからpage_pathとmdの内容を取得する
 export async function GetPage(id: number): Promise<Page> {
     let res: Page = { page_path: "", md: "" };
-    const url = "/page" + "/" + id.toString();
+    const url = "/page" + "/" + id;
     await axios.get(url,
     ).then((response: AxiosResponse<Page>) => {
         res = response.data
@@ -64,7 +64,7 @@ export async function GetPage(id: number): Promise<Page> {
 // 存在する -> true
 export async function IsExistPage(app_id: number, page_path: string): Promise<boolean> {
     let is_exist = false;
-    const url = "/doc" + "/" + app_id.toString() + "/page_path" + "/" + page_path;
+    const url = "/app" + "/" + app_id + "/page" + "/" + page_path;
     await axios.get(url)
         .then(function () {
             is_exist = true;

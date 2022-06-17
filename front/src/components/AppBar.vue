@@ -30,7 +30,7 @@
             <v-row>
               <v-col cols="12" sm="6" md="4">
                 <v-text-field
-                  label="app name/ 以下を入力してください。"
+                  label="ページパス"
                   required
                   v-model="page_path"
                 ></v-text-field>
@@ -77,12 +77,15 @@ export default class AppBar extends Vue {
   @Prop({ type: Number, default: 0 })
   AppId!: number;
 
-  @Prop({ type: String, default: "app" })
-  AppName!: string;
+  app_name = "";
+  app_id = 0;
 
   page_path = "";
   mounted() {
-    this.page_path = this.AppName + "/";
+    this.app_name = this.$store.state.app_name;
+    this.app_id = this.$store.state.app_id;
+    this.page_path = this.app_name + "/";
+    alert(this.page_path);
   }
   SetPagePath(page_path: string) {
     const regx = new RegExp("/+", "i");
@@ -90,7 +93,7 @@ export default class AppBar extends Vue {
   }
 
   async CheckPagePath() {
-    let is_exist = await IsExistPage(this.AppId, this.page_path);
+    let is_exist = await IsExistPage(this.app_id, this.page_path);
     if (is_exist) {
       alert(this.page_path + " はすでに存在します");
     } else {

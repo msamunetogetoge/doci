@@ -65,7 +65,8 @@ export default class LoginForm extends Vue {
       this.display_error = false;
       // success ==true => storeにname, idをセットしてユーザーページに飛ばす
       let user = await get_user(this.id);
-      this.$store.dispatch("set_user_id", user.user_id);
+      console.log(user);
+      this.$store.dispatch("set_user_id", user.userid);
       this.$store.dispatch("set_user_name", user.username);
       this.$router.push("user");
     } else {

@@ -109,7 +109,7 @@ export default class SignUpForm extends Vue {
     if (this.success) {
       const user = await get_user(this.name);
       this.$store.dispatch("login_state_ok");
-      this.$store.dispatch("set_user_id", user.user_id);
+      this.$store.dispatch("set_user_id", user.userid);
       this.$store.dispatch("set_user_name", user.username);
       this.$router.push("/user");
     } else {
