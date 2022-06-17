@@ -132,9 +132,7 @@ struct Page {
 ///ファイルを読み込めなかったときは空のデータを返す
 async fn get_page(extract::Path(hierarchy_id): extract::Path<i64>) -> extract::Json<Page> {
     let pool = get_conn().await;
-    tracing::info!("In get_page paramerter = {}", hierarchy_id);
     let (app_id, page_path) = get_web_page_info(&pool, hierarchy_id).await.unwrap();
-    println!("app_id={},page_path={}", app_id, page_path);
     let web_page = get_web_page(&pool, app_id, &page_path).await.unwrap();
     if let Ok(res) = fs::read_to_string(&web_page.file_path) {
         Json(Page {

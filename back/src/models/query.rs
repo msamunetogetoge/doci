@@ -50,7 +50,6 @@ pub async fn get_web_page(
         .bind(page_path)
         .fetch_one(pool)
         .await?;
-    println!("{:?}", &page);
     Ok(page)
 }
 
@@ -80,7 +79,6 @@ pub async fn get_page_structure(
     .await
     .unwrap();
 
-    println!("{:?}", &pages);
     pages.into_iter().map(|x| x.into_ts()).collect()
 }
 
@@ -131,15 +129,11 @@ pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String {
 
     // app/hoge/abc.md/ の形のString を作る
     for row in pages.iter() {
-        println!("row.child_path= {}", row.child_path);
-
         url.push_str(&row.child_path);
         url.push('/');
-        println!("url= {}", url);
     }
     // 最後の/ は不要なので削除する
     let _ = url.remove(url.len() - 1);
-    println!("finally, url= {}", url);
     url
 }
 
@@ -212,8 +206,6 @@ WHERE ph.id = $1
 
     // web_pages から削除
     for page_path in delete_pages {
-        println!("in delete_pages, pages in web_page is  {}", page_path);
-
         // ファイルを削除するためにデータを取得しておく
         let row = sqlx::query(
             r##" SELECT file_path  FROM public."web_pages" WHERE app_id = $1 AND page_path =$2"##,

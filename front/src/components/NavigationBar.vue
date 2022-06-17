@@ -46,12 +46,10 @@
             <v-icon v-text="GetIcon(item)"></v-icon>
           </template>
           <template v-slot:append="{ item }">
-            <!-- <v-btn icon @click="DeleteItems(item)">
-              <v-icon
-              v-text="files.delete"
-              ></v-icon>
-            </v-btn> -->
-            <v-dialog v-model="dialog" max-width="600px" :retain-focus="false">
+            <v-btn icon v-if="item.depth != 1" @click="DeleteItems(item.id)">
+              <v-icon v-text="files.delete"></v-icon>
+            </v-btn>
+            <!-- <v-dialog v-model="dialog" max-width="600px" :retain-focus="false">
               <template v-slot:activator="{ on, attrs }">
                 <v-btn icon v-if="item.depth != 1" v-bind="attrs" v-on="on">
                   <v-icon v-text="files.delete"></v-icon>
@@ -66,12 +64,16 @@
                   <v-btn color="blue darken-1" text @click="dialog = false">
                     No
                   </v-btn>
-                  <v-btn color="blue darken-1" text @click="DeleteItems(item)">
+                  <v-btn
+                    color="blue darken-1"
+                    text
+                    @click="DeleteItems(item.id)"
+                  >
                     Yes
                   </v-btn>
                 </v-card-actions>
               </v-card>
-            </v-dialog>
+            </v-dialog> -->
             <!-- <v-btn icon @click="DeleteItems(item)">
               <v-icon
               v-text="files.delete"
@@ -153,10 +155,11 @@ export default class NavBar extends Vue {
 
   // tree-viewのボタンをクリックしたときに呼ばれる
   // 確認したらフォルダ(を含む)以下を削除する
-  async DeleteItems(item: Hierarchy): Promise<void> {
-    let success = await DeletePages(item);
+  async DeleteItems(hierarchy_id: number): Promise<void> {
+    console.log("In DeleteItems , id=" + hierarchy_id);
+    let success = await DeletePages(hierarchy_id);
     if (success) {
-      alert(item + "を削除しました");
+      alert("削除しました");
       this.show_tree = false;
       this.$nextTick(() => (this.show_tree = true));
       this.items_folder = [

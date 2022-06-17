@@ -25,22 +25,19 @@ export async function AddOrUpdate(app_id: number, page_path: string, data: strin
 
 // dbからデータを削除する
 // 成功->true ,失敗->false
-export async function DeletePages(data: Hierarchy): Promise<boolean> {
+export async function DeletePages(hierarchy_id: number): Promise<boolean> {
     let success = false;
-    if (data.id === undefined) {
+
+    const url = "/page" + "/" + hierarchy_id;
+    await axios.delete(url,
+    ).then(() => {
+        success = true;
+    }).catch(() => {
+        success = false;
+    }).finally(() => {
         return success;
-    }
-    else {
-        const url = "/page" + "/" + data.id;
-        await axios.delete(url,
-        ).then(() => {
-            success = true;
-        }).catch(() => {
-            success = false;
-        }).finally(() => {
-            return success;
-        })
-    }
+    })
+
     return success;
 }
 
@@ -65,6 +62,7 @@ export async function GetPage(id: number): Promise<Page> {
 export async function IsExistPage(app_id: number, page_path: string): Promise<boolean> {
     let is_exist = false;
     const url = "/app" + "/" + app_id + "/page" + "/" + page_path;
+    console.log("In IsExistPage, url = " + url);
     await axios.get(url)
         .then(function () {
             is_exist = true;
