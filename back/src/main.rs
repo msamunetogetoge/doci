@@ -38,7 +38,7 @@ async fn main() {
         .route("/get_hierarchy", post(get_hierarchy))
         .route("/page", post(register_page))
         .route("/doc", post(create_doc))
-        .route("/app/:app_id/path/:page_path", get(try_get_page))
+        .route("/app/:app_id/page", get(try_get_page))
         .route("/doc/:user_id", get(get_doc_infos))
         .route("/page/:hierarchy_id", get(get_page))
         .route("/login", post(login))
@@ -62,13 +62,20 @@ async fn root() -> &'static str {
     "Hello, World!"
 }
 
+/// ページパスを検索する為のクエリ
+#[derive(Debug, Deserialize, Serialize)]
+struct PageQuery {
+    page_path: String,
+}
+
 /// もしもデータが存在すればデータを返す。
 /// なければNoneを返す
 async fn try_get_page(
-    extract::Path((app_id, page_path)): extract::Path<(i64, String)>,
+    extract::Path(app_id): extract::Path<i64>,
+    page_path: extract::Query<PageQuery>,
 ) -> impl IntoResponse {
     let pool = get_conn().await;
-    let web_pages_or_none = get_web_page(&pool, app_id, &page_path).await;
+    let web_pages_or_none = get_web_page(&pool, app_id, &page_path.page_path).await;
     match web_pages_or_none {
         Ok(web_page) => (StatusCode::OK, Json(Some(web_page))),
         Err(e) => {

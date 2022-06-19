@@ -61,7 +61,7 @@ export async function GetPage(id: number): Promise<Page> {
 // 存在する -> true
 export async function IsExistPage(app_id: number, page_path: string): Promise<boolean> {
     let is_exist = false;
-    const url = "/app" + "/" + app_id + "/page" + "/" + page_path;
+    const url = "/app" + "/" + app_id + "/page" + "?" + "page_path=" + page_path;
     console.log("In IsExistPage, url = " + url);
     await axios.get(url)
         .then(function () {

@@ -45,6 +45,7 @@ pub async fn get_web_page(
     id: i64,
     page_path: &str,
 ) -> Result<WebPages, sqlx::Error> {
+    println!("In get_web_page id={}, page_path={}", id, page_path);
     let page = sqlx::query_as::<_, WebPages>(r##"SELECT app_id, page_path, file_path FROM public."web_pages" WHERE app_id=$1 and page_path=$2"##)
         .bind(id)
         .bind(page_path)

@@ -85,7 +85,6 @@ export default class AppBar extends Vue {
     this.app_name = this.$store.state.app_name;
     this.app_id = this.$store.state.app_id;
     this.page_path = this.app_name + "/";
-    alert(this.page_path);
   }
   SetPagePath(page_path: string) {
     const regx = new RegExp("/+", "i");

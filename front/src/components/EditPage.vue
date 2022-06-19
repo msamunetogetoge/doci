@@ -95,13 +95,6 @@ md.use(markdownItPlantuml);
   },
 })
 export default class EditPage extends Vue {
-  // @Prop({ type: Number, default: 0 })
-  // app_id!: number;
-  // @Prop({ type: Number, default: 0 })
-  // user_id!: number;
-  // @Prop({ type: String, default: "app" })
-  // app_name!: string;
-
   // vuex から created の時に値を渡す
   app_id = 0;
   user_id = 0;
