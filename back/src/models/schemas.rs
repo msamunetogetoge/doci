@@ -78,6 +78,13 @@ pub struct WebPageInfo {
     pub page_data: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct PageDecomposition {
+    pub id: i64,
+    pub parent: i64,
+    pub child: String,
+}
+
 impl WebPageInfo {
     /**
     アプリidとページパスの情報からmdの格納先情報を作成する
@@ -147,7 +154,7 @@ page_hierarchy table
 pub struct PageHierarchy {
     pub id: Option<i64>,
     pub app_id: i64,
-    pub parent_path: String,
-    pub child_path: String,
+    pub parent: i64,
+    pub child: String,
     pub depth: i32,
 }

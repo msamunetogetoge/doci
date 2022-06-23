@@ -69,7 +69,7 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component, Prop } from "vue-property-decorator";
+import { Vue, Component } from "vue-property-decorator";
 import VueSimplemde from "vue-simplemde";
 import markdownIt from "markdown-it";
 import markdownItPlantuml from "markdown-it-plantuml";

@@ -50,15 +50,26 @@ CREATE TABLE web_pages (
 
 --- page_hierarchy table
 --- ページの階層構造を保存しておく  
---- doc/index.md -> parent_path = doc, child_path = index.md
---- web_pages にinsert やupdate が来た時に変更される
+--- web_pages にinsertが来た時に変更される
 CREATE TABLE page_hierarchy (
   id BIGSERIAL NOT NULL,
     app_id bigint NOT NULL,
-    parent_path VARCHAR(512) NOT NULL NOT NULL,
-    child_path VARCHAR(512) NOT NULL NOT NULL,
+    parent bigint NOT NULL,
+    child VARCHAR(512) NOT NULL,
     depth int NOT NULL, --- child_path のdepth
     created_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
-    PRIMARY KEY(id,app_id, parent_path, child_path)
+    PRIMARY KEY(id,app_id, parent_path, child),
+    UNIQUE(app_id,child,depth)
 );
+
+-- CREATE TABLE page_hierarchy (
+--   id BIGSERIAL NOT NULL,
+--     app_id bigint NOT NULL,
+--     parent_path VARCHAR(512) NOT NULL NOT NULL,
+--     child_path VARCHAR(512) NOT NULL NOT NULL,
+--     depth int NOT NULL, --- child_path のdepth
+--     created_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
+--     PRIMARY KEY(id,app_id, parent_path, child_path)
+-- );

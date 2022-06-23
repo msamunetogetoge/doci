@@ -68,13 +68,24 @@ struct PageQuery {
     page_path: String,
 }
 
+// デフォルト値の設定
+impl Default for PageQuery {
+    fn default() -> Self {
+        Self {
+            page_path: String::from(""),
+        }
+    }
+}
+
 /// もしもデータが存在すればデータを返す。
 /// なければNoneを返す
 async fn try_get_page(
     extract::Path(app_id): extract::Path<i64>,
-    page_path: extract::Query<PageQuery>,
+    page_path: Option<extract::Query<PageQuery>>,
 ) -> impl IntoResponse {
     let pool = get_conn().await;
+    let extract::Query(page_path) = page_path.unwrap_or_default();
+    println!("In try_get_page, PageQuery = {:?}", page_path);
     let web_pages_or_none = get_web_page(&pool, app_id, &page_path.page_path).await;
     match web_pages_or_none {
         Ok(web_page) => (StatusCode::OK, Json(Some(web_page))),
@@ -113,7 +124,7 @@ async fn get_hierarchy(
 ) -> response::Json<Vec<HierarchyTS>> {
     let pool = get_conn().await;
     if info.id == None {
-        Json(get_page_structure(&pool, info.app_id, info.parent_path, info.depth).await)
+        Json(get_page_structure(&pool, info.app_id).await)
     } else {
         Json(get_page_structure_from_id(&pool, info.id.unwrap()).await)
     }

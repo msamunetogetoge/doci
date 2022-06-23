@@ -3,6 +3,11 @@ use dotenv::dotenv;
 use sqlx::{postgres::PgPool, Row};
 use std::{env, fs, io, path::Path};
 
+/// page_hierarchy の一番上のデータのdepth を決める定数
+pub const HIERARCHY_TOP_NUMBER: i32 = 0;
+/// page_hierarchy  の一番上のデータのparent を決める定数
+pub const HIERARCHY_TOP_PARENT_ID: i64 = -99;
+
 /**
 ページ階層構造から、app_id を取り出す
 もしも、二つ以上のapp_idが紛れていたらpanicする
@@ -54,28 +59,14 @@ pub async fn get_web_page(
     Ok(page)
 }
 
-/**
-ページの親を指定して、子を取り出す
-その後、フロント側で処理する形に変形する
-一番上の階層のときだけ使用する
- */
-
-pub async fn get_page_structure(
-    pool: &PgPool,
-    app_id: i64,
-    parent_path: String,
-    depth: i32,
-) -> Vec<HierarchyTS> {
-    if depth != 1 {
-        panic!("depth =1 以外のデータが投入された");
-    }
+/// page_hierarchy からdepth = HIERARCHY_TOP_NUMBER + 1 のデータを取得する
+pub async fn get_page_structure(pool: &PgPool, app_id: i64) -> Vec<HierarchyTS> {
     let pages = sqlx::query_as::<_, Hierarchy>(
-        r##"SELECT id, app_id, child_path, depth FROM public."page_hierarchy" 
-        WHERE app_id=$1 AND parent_path=$2 AND depth=$3"##,
+        r##"SELECT id, app_id, child as child_path, depth FROM public."page_hierarchy" 
+        WHERE app_id=$1 AND depth=$2"##,
     )
     .bind(app_id)
-    .bind(parent_path)
-    .bind(depth + 1)
+    .bind(HIERARCHY_TOP_NUMBER + 1)
     .fetch_all(pool)
     .await
     .unwrap();
@@ -83,16 +74,14 @@ pub async fn get_page_structure(
     pages.into_iter().map(|x| x.into_ts()).collect()
 }
 
-/**
-ページの親を(postgressqlのserialで)指定して、子を取り出す
-その後、フロント側で処理する形に変形する
- */
-
+/// ページの親を(postgressqlのserialで)指定して、子を取り出す
+/// その後、フロント側で処理する形に変形する
+/// id -> page_hierarchy.id
 pub async fn get_page_structure_from_id(pool: &PgPool, id: i64) -> Vec<HierarchyTS> {
     let pages = sqlx::query_as::<_, Hierarchy>(
         r##"  WITH X AS (SELECT * FROM public."page_hierarchy" WHERE id =$1 )
-        SELECT ph.id, ph.app_id, ph.child_path, ph.depth FROM public."page_hierarchy" ph ,X
-        WHERE ph.app_id=X.app_id AND ph.parent_path=X.child_path AND ph.depth=X.depth + 1;"##,
+        SELECT ph.id, ph.app_id, ph.child as child_path, ph.depth FROM public."page_hierarchy" ph ,X
+        WHERE ph.app_id=X.app_id AND ph.parent=X.id AND ph.depth=X.depth + 1;"##,
     )
     .bind(id)
     .fetch_all(pool)
@@ -102,35 +91,58 @@ pub async fn get_page_structure_from_id(pool: &PgPool, id: i64) -> Vec<Hierarchy
 }
 
 /// get_page_path で使うためのストラクト
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug)]
 struct ChildPath {
-    child_path: String,
+    child: String,
 }
 
 /// もらったpage_hierarchy のSerial で、祖先までのページパス(app/hoge/hogege.md など)を取得する。
 /// パスは、'/'区切り
 pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String {
-    // let mut url = PathBuf::from("");
+    // path_id の親を特定するのに使う
+    let app_id = sqlx::query!(
+        r##"SELECT app_id FROM public."page_hierarchy" WHERE id = $1 "##,
+        path_id
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
     let mut url = String::from("");
 
     // path_id の親すべて(自身も含む)を列挙するSQL
+    // let pages = sqlx::query_as::<_, ChildPath>(
+    //     r##" WITH RECURSIVE X( parent_path,child_path,depth) AS
+    // (SELECT ph.parent_path,ph.child_path, ph.depth FROM public."page_hierarchy"  ph WHERE ph.id = $1
+    // union  all
+    // select ph.parent_path, ph.child_path, ph.depth from X,public."page_hierarchy"  ph
+    // where X.parent_path = ph.child_path AND X.parent_path != X.child_path )
+    // SELECT child_path FROM X order by depth;
+    // "##,
+    // )
+    // .bind(path_id)
+    // .fetch_all(pool)
+    // .await
+    // .unwrap();
+
     let pages = sqlx::query_as::<_, ChildPath>(
-        r##" WITH RECURSIVE X( parent_path,child_path,depth) AS 
-    (SELECT ph.parent_path,ph.child_path, ph.depth FROM public."page_hierarchy"  ph WHERE ph.id = $1
+        r##" WITH RECURSIVE X(id, parent,child,depth) AS
+    (SELECT ph.id,ph.parent,ph.child, ph.depth FROM public."page_hierarchy"  ph WHERE ph.id = $1 AND ph.app_id=$2
     union  all
-    select ph.parent_path, ph.child_path, ph.depth from X,public."page_hierarchy"  ph
-    where X.parent_path = ph.child_path AND X.parent_path != X.child_path)
-    SELECT child_path FROM X order by depth;
+    select ph.id,ph.parent, ph.child, ph.depth from X,public."page_hierarchy"  ph
+    where X.parent = ph.id AND ph.app_id= $2)
+    SELECT child FROM X order by depth;
     "##,
     )
     .bind(path_id)
+    .bind(app_id.app_id)
     .fetch_all(pool)
     .await
     .unwrap();
 
     // app/hoge/abc.md/ の形のString を作る
-    for row in pages.iter() {
-        url.push_str(&row.child_path);
+    println!("{:?}", pages);
+    for child_path in pages.iter() {
+        url.push_str(&child_path.child);
         url.push('/');
     }
     // 最後の/ は不要なので削除する
@@ -159,34 +171,71 @@ pub async fn delete_pages(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     // web_pages からデータを削除するときの、page_path作成のためにデータを取得しておく
+    //     let pages = sqlx::query_as::<_, HierarchyId>(
+    //         r##"
+    //     WITH RECURSIVE X(id, parent_path,child_path) AS
+    //     (SELECT ph.id,ph.parent_path,ph.child_path FROM public."page_hierarchy"  ph
+    // WHERE ph.id = $1
+    //     union  all
+    //     select ph.id, ph.parent_path, ph.child_path from X,public."page_hierarchy"  ph
+    //     where ph.parent_path = X.child_path AND X.parent_path != X.child_path)
+    //     SELECT id,child_path FROM X;
+    //     "##,
+    //     )
+    //     .bind(id)
+    //     .fetch_all(&mut tx)
+    //     .await?;
+
     let pages = sqlx::query_as::<_, HierarchyId>(
         r##"
-    WITH RECURSIVE X(id, parent_path,child_path) AS 
-    (SELECT ph.id,ph.parent_path,ph.child_path FROM public."page_hierarchy"  ph 
-WHERE ph.id = $1
-    union  all
-    select ph.id, ph.parent_path, ph.child_path from X,public."page_hierarchy"  ph
-    where ph.parent_path = X.child_path AND X.parent_path != X.child_path)
-    SELECT id,child_path FROM X;
-    "##,
+        WITH RECURSIVE X AS 
+(SELECT * FROM public."page_hierarchy"  ph 
+WHERE ph.id = $1 AND ph.app_id = $2
+union  all
+select ph.id, ph.app_id, ph.parent,ph.child, ph.depth, ph.created_at, ph.updated_at from X,public."page_hierarchy"  ph
+where ph.parent = X.id AND X.depth > $3  AND ph.app_id=$2)
+SELECT id, child as child_path FROM X;
+"##,
     )
     .bind(id)
+    .bind(app_id.app_id)
+    .bind(HIERARCHY_TOP_NUMBER)
     .fetch_all(&mut tx)
     .await?;
 
     // page_hierarchy から削除
+    //     if let Err(err) = sqlx::query(
+    //         r##"
+    //     WITH RECURSIVE X(id, parent_path,child_path) AS
+    //     (SELECT ph.id,ph.parent_path,ph.child_path FROM public."page_hierarchy"  ph
+    // WHERE ph.id = $1
+    //     union  all
+    //     select ph.id, ph.parent_path, ph.child_path from X,public."page_hierarchy"  ph
+    //     where ph.parent_path = X.child_path AND X.parent_path != X.child_path)
+    //     DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
+    //     "##,
+    //     )
+    //     .bind(id)
+    //     .fetch_all(&mut tx)
+    //     .await
+    //     {
+    //         tx.rollback().await?;
+    //         return Err(err);
+    //     };
     if let Err(err) = sqlx::query(
         r##" 
-    WITH RECURSIVE X(id, parent_path,child_path) AS 
-    (SELECT ph.id,ph.parent_path,ph.child_path FROM public."page_hierarchy"  ph 
-WHERE ph.id = $1
-    union  all
-    select ph.id, ph.parent_path, ph.child_path from X,public."page_hierarchy"  ph
-    where ph.parent_path = X.child_path AND X.parent_path != X.child_path)
-    DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
-    "##,
+        WITH RECURSIVE X AS 
+(SELECT * FROM public."page_hierarchy"  ph 
+WHERE ph.id = $1 AND ph.app_id = $2
+union  all
+select ph.id, ph.app_id, ph.parent,ph.child, ph.depth, ph.created_at, ph.updated_at from X,public."page_hierarchy"  ph
+where ph.parent = X.id AND X.depth > $3  AND ph.app_id=$2)
+DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
+"##,
     )
     .bind(id)
+    .bind(app_id.app_id)
+    .bind(HIERARCHY_TOP_NUMBER)
     .fetch_all(&mut tx)
     .await
     {
@@ -240,8 +289,20 @@ WHERE ph.id = $1
     Ok(tx.commit().await?)
 }
 
+/// fileにデータを書きこむ
+fn write_file(file_path: &str, page_data: &str) -> Result<(), sqlx::Error> {
+    if let Err(err) = fs::write(file_path, page_data) {
+        return Err(sqlx::Error::Io(err));
+    }
+    Ok(())
+}
+
+#[derive(sqlx::FromRow)]
+struct Id {
+    id: i64,
+}
 /// ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
-/// 既にデータが存在する時はupdateファイル更新だけする。
+/// 既にデータが存在する時はupdate,ファイル更新だけする。
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
     let file_path = &page.create_file_path();
     let page_path = &page.get_page_path();
@@ -252,56 +313,167 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
         .is_ok()
     {
         // 既にデータが存在するので、ファイルを更新する
-        let page_data = page.page_data.as_ref().unwrap();
-        if let Err(err) = fs::write(&file_path, page_data) {
-            return Err(sqlx::Error::Io(err));
-        } else {
-            return Ok(());
-        }
+        return write_file(file_path, page.page_data.as_ref().unwrap());
     }
 
     // transaction start
     let mut tx = pool.begin().await?;
 
     // page_path をpage_hierarchy 用に分解
-    let paths: Vec<&str> = page_path.split('/').collect();
-    let l = &paths.len();
+    // let paths: Vec<&str> = page_path.split('/').collect();
+    // let length_of_path = &paths.len();
 
     // page_hierarchy にデータを登録する
-    for (i, _path) in paths.clone().into_iter().enumerate() {
-        let j = i as i32;
-        if i + 1 != *l {
-            let res = sqlx::query!(r##"
-            SELECT app_id FROM public."page_hierarchy" WHERE app_id = $1 AND parent_path = $2 AND child_path = $3 AND depth = $4
+    // 親の情報でpage_hierarchyからSELECT してみる
+    // -> 出来る->何もしない , 出来ない-> INSERT
+    let mut res: Vec<PageDecomposition> = Vec::new();
+    let page_elements = page_path.split('/');
+    println!("In add_web_page, page_elements = {:?}", page_elements);
+    for (i, page_element) in page_elements.enumerate() {
+        if i == 0 {
+            let first_row = sqlx::query!(
+                r##"
+            SELECT id  FROM public."page_hierarchy" WHERE app_id=$1 AND parent=$2 AND depth = $3
             "##,
-            page.app_id,
-            &paths[i],
-            &paths[i+1],
-            j+2
-            ).fetch_one(&mut tx).await;
-            match res {
-                Ok(_) => {
-                    // すでに存在するデータなので何もしない
+                page.app_id,
+                HIERARCHY_TOP_PARENT_ID,
+                HIERARCHY_TOP_NUMBER,
+            )
+            .fetch_one(pool)
+            .await
+            .unwrap();
+            res.push(PageDecomposition {
+                id: first_row.id,
+                parent: HIERARCHY_TOP_PARENT_ID,
+                child: page_element.to_string(),
+            });
+        } else {
+            let depth = HIERARCHY_TOP_NUMBER + i as i32;
+            // page_hierarchy からSELECT してみる
+            let parent_row = sqlx::query!(
+                        r##"
+                    SELECT id  FROM public."page_hierarchy" WHERE app_id=$1 AND parent=$2 AND child = $3 AND depth = $4 
+                    "##,
+                        page.app_id,
+                        res[i - 1].id,
+                        page_element,
+                        depth
+                    )
+                    .fetch_one(pool)
+                    .await;
+            match parent_row {
+                Ok(selected_row) => {
+                    // すでに存在するデータなのでINSERT はしない
+                    res.push(PageDecomposition {
+                        id: selected_row.id,
+                        parent: res[i - 1].id,
+                        child: page_element.to_string(),
+                    });
                 }
                 Err(_) => {
-                    // データがないので、page_hierarchy にデータ追加する
-                    let j = i as i32;
-                    let _q = sqlx::query!(r##"
-                INSERT INTO public."page_hierarchy"  (app_id, parent_path, child_path, depth) VALUES ($1,$2, $3, $4)
-                "##,
-            page.app_id,
-            &paths[i],
-            &paths[i+1],
-            j +2
-        ).execute(&mut tx)
-        .await?;
+                    println!(
+                        "In add_web_page parent_row match-arm Err(_), i={}, res[i-1]={:?}, res={:?}",
+                        i,
+                        res[i - 1],
+                        res
+                    );
+                    // データが存在しないのでINSERT
+                    let parent_id = sqlx::query_as::<_,Id>(r##"
+                    INSERT INTO public."page_hierarchy"  (app_id, parent, child, depth) VALUES ($1,$2, $3, $4) RETURNING id
+                    "##)
+                .bind(page.app_id)
+                .bind(res[i-1].id)
+                .bind(page_element.to_string())
+                .bind(depth)
+            .fetch_one(&mut tx)
+            .await;
+                    match parent_id {
+                        Ok(got_id) => {
+                            res.push(PageDecomposition {
+                                id: got_id.id,
+                                parent: res[i - 1].id,
+                                child: page_element.to_string(),
+                            });
+                        }
+                        Err(e) => {
+                            tx.rollback().await?;
+                            println!("{:?}", &res);
+                            return Err(e);
+                        }
+                    }
                 }
             }
         }
     }
+    println!(
+        "In add_web_page, res(vector of PageDecompotion) = {:?}",
+        res
+    );
+
+    // for (i, hierarchy) in decompositioned_page.iter().enumerate() {
+    //     let j = i as i32;
+    //     let res = sqlx::query!(r##"
+    //         SELECT app_id FROM public."page_hierarchy" WHERE app_id = $1 AND parent = $2 AND child = $3 AND depth = $4
+    //         "##,
+    //         page.app_id,
+    //         hierarchy.parent,
+    //         hierarchy.child,
+    //         HIERARCHY_TOP_NUMBER + j +1
+    //         ).fetch_one(&mut tx).await;
+    //     match res {
+    //         Ok(_) => {
+    //             // すでに存在するデータなので何もしない
+    //         }
+    //         Err(_) => {
+    //             let j = i as i32;
+    //             // データがないので、page_hierarchy にデータ追加する
+    //             let _q = sqlx::query!(r##"
+    //             INSERT INTO public."page_hierarchy"  (app_id, parent, child, depth) VALUES ($1,$2, $3, $4)
+    //             "##,
+    //         page.app_id,
+    //         hierarchy.parent,
+    //         hierarchy.child,
+    //         HIERARCHY_TOP_NUMBER + j +1
+    //     ).execute(&mut tx)
+    //     .await?;
+    //         }
+    //     }
+    // }
+    // for (i, _path) in paths.clone().into_iter().enumerate() {
+    //     let j = i as i32;
+    //     // paths[i] -> parent_path, paths[i+1] -> child_paths なので、 i+1 がlength_of path 未満の時だけ処理する
+    //     if i + 1 < *length_of_path {
+    //         let res = sqlx::query!(r##"
+    //         SELECT app_id FROM public."page_hierarchy" WHERE app_id = $1 AND parent = $2 AND child = $3 AND depth = $4
+    //         "##,
+    //         page.app_id,
+    //         &paths[i],
+    //         &paths[i+1],
+    //         j+1
+    //         ).fetch_one(&mut tx).await;
+    //         match res {
+    //             Ok(_) => {
+    //                 // すでに存在するデータなので何もしない
+    //             }
+    //             Err(_) => {
+    //                 // データがないので、page_hierarchy にデータ追加する
+    //                 let j = i as i32;
+    //                 let _q = sqlx::query!(r##"
+    //             INSERT INTO public."page_hierarchy"  (app_id, parent, child, depth) VALUES ($1,$2, $3, $4)
+    //             "##,
+    //         page.app_id,
+    //         &paths[i],
+    //         &paths[i+1],
+    //         j +1
+    //     ).execute(&mut tx)
+    //     .await?;
+    //             }
+    //         }
+    //     }
+    // }
 
     // web_pages にデータ追加
-    let p = sqlx::query!(
+    let added_page = sqlx::query!(
         r##" INSERT INTO public."web_pages" (app_id, page_path, file_path) VALUES ($1, $2, $3)"##,
         page.app_id,
         &page_path,
@@ -310,8 +482,8 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     .execute(&mut tx)
     .await;
 
-    // 処理がうまく行けば transaction をコミットする。
-    match p {
+    // dbの処理が上手くいき、ファイルの更新が上手くいったらtransaction をコミットする。
+    match added_page {
         Ok(_) => {
             let page_data = page.page_data.as_ref().unwrap();
             if let Err(err) = fs::write(&file_path, page_data) {
@@ -337,7 +509,7 @@ pub async fn get_web_page_info(
 ) -> Result<(i64, String), sqlx::Error> {
     let row = sqlx::query!(
         r##"
-            SELECT id, app_id, child_path  FROM public."page_hierarchy" WHERE id = $1 
+            SELECT id, app_id, child  FROM public."page_hierarchy" WHERE id = $1 
             "##,
         hierarchy_id
     )
@@ -384,13 +556,5 @@ mod tests {
         let markdown_text = info.get_markdown();
 
         assert_eq!(test, markdown_text.unwrap())
-    }
-
-    // 階層構造からファイルパスを組み立てられるかテスト。 自動化できてはない。
-    #[tokio::test]
-    async fn get_page_path_test() {
-        let conn = get_conn().await;
-        let p = get_page_path(&conn, 6).await;
-        assert_eq!(p, "app/hoge.md".to_string())
     }
 }

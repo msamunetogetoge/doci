@@ -2,6 +2,7 @@ use sqlx::postgres::PgPool;
 
 use serde::{Deserialize, Serialize};
 
+use crate::{HIERARCHY_TOP_NUMBER, HIERARCHY_TOP_PARENT_ID};
 use chrono::NaiveDateTime;
 
 /// front側にデータを渡すときに使うストラクト
@@ -30,6 +31,8 @@ pub async fn get_created_doc(pool: &PgPool, user_id: i64) -> Result<Vec<DocInfo>
 impl DocInfo {
     /// insert 文を発行すし、page_hierarchy にもデータを作成する。
     pub async fn create_doc(&self, pool: &PgPool) -> Result<(), sqlx::Error> {
+        // struct で定義する
+
         let mut tx = pool.begin().await?;
         // query_as! するために使う
         struct ID {
@@ -55,11 +58,13 @@ impl DocInfo {
             Ok(row) => {
                 let created_hierarchy = sqlx::query(
                     r##"
-            INSERT INTO  public."page_hierarchy" (app_id, parent_path, child_path, depth)  VALUES ($1,$2,$2,1) RETURNING id
+            INSERT INTO  public."page_hierarchy" (app_id, parent, child, depth)  VALUES ($1,$2,$3,$4) RETURNING id
             "##,
                 )
                 .bind(row.id)
+                .bind(HIERARCHY_TOP_PARENT_ID)
                 .bind(&self.app_name)
+                .bind(HIERARCHY_TOP_NUMBER)
                 .fetch_one(&mut tx)
                 .await;
                 // insert 成功ならOKを返す

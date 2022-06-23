@@ -94,6 +94,9 @@ import { DeletePages, GetPage } from "../utils/page-util";
 import { Vue, Component, Prop } from "vue-property-decorator";
 import { GetFolders, Hierarchy } from "../utils/hierarchy-utils";
 
+// db のpublic.page_hierarchy でparent_path= app_name. child_path=app_name のdepthを表す定数。
+// back 側にも同じ定数があるので合わせる必要がある。
+const HIERARCHY_TOP_NUMBER = 0;
 @Component
 export default class NavBar extends Vue {
   @Prop({ type: Number, default: 0 })
@@ -146,7 +149,7 @@ export default class NavBar extends Vue {
       {
         app_id: this.AppId,
         name: this.AppName,
-        depth: 1,
+        depth: HIERARCHY_TOP_NUMBER,
         id: undefined,
         children: [],
       },
@@ -187,13 +190,14 @@ export default class NavBar extends Vue {
       return;
     } else {
       let page = await GetPage(item.id);
+      console.log(page);
       this.$emit("StartEdit", page.page_path, page.md);
     }
   }
 
   // tree-view のアイコンを決める関数
   GetIcon(item: Hierarchy): string {
-    if (item.depth === 1) {
+    if (item.depth === HIERARCHY_TOP_NUMBER) {
       return this.files["folders"];
     } else if (item.children) {
       return this.files["folder"];
