@@ -1,8 +1,13 @@
 import axios, { AxiosResponse, AxiosError } from "axios"
+import { create_url } from "./url-util";
 
 export async function login(username: string, pass: string): Promise<boolean> {
     let success = false;
-    await axios.post("/login", {
+
+    const path: string[] = ["login"];
+    const url = create_url(path);
+
+    await axios.post(url, {
         username: username,
         password: pass,
     })
@@ -37,7 +42,12 @@ export async function signup_user(username: string, mail_address: string, pass: 
         password: pass,
         mailaddress: mail_address
     };
-    await axios.post("/user",
+
+    // axiosで問い合わせるapiのurl作成
+    const path: string[] = ["user"];
+    const url = create_url(path);
+
+    await axios.post(url,
         user
     )
         .then(() => {
@@ -59,7 +69,12 @@ export async function edit_user(username: string, mail_address: string, pass: st
         password: pass,
         mailaddress: mail_address
     };
-    await axios.put("/user",
+
+    // axiosで問い合わせるapiのurl作成
+    const path: string[] = ["user"];
+    const url = create_url(path);
+
+    await axios.put(url,
         user
     )
         .then(() => {
@@ -78,7 +93,11 @@ export async function get_user(username: string): Promise<UserInfo> {
     let res: UserInfo = {
         username: username,
     };
-    const url = "user" + "/" + username;
+
+    // axiosで問い合わせるapiのurl作成
+    const path: string[] = ["user", username];
+    const url = create_url(path);
+
     await axios.get(url).then(function (response: AxiosResponse<UserInfo>) {
         res = response.data;
 

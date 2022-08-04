@@ -1,4 +1,4 @@
-use crate::models::schemas::*;
+use crate::models::{requests::*, schemas::*};
 use dotenv::dotenv;
 use sqlx::{postgres::PgPool, Row};
 use std::{env, fs, io, path::Path};
@@ -34,14 +34,6 @@ pub fn models_init() {
             panic!("Folder is not Exist But Cannot create folder")
         }
     }
-}
-
-// .envファイルの情報からdbに接続する
-pub async fn get_conn() -> PgPool {
-    dotenv().ok();
-
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    PgPool::connect(&database_url).await.unwrap()
 }
 
 // ドキュメントの情報を取得する
@@ -160,6 +152,10 @@ struct HierarchyId {
 /// もらったparent_pathの子どものpage_hierarchy, web_pagesのデータ、マークダウンのファイルを削除する  
 /// id : page_hierarchy のpkey
 pub async fn delete_pages(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
+    dotenv().ok();
+    // delete_page の時に使うurl
+    let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
+
     let app_id = sqlx::query!(
         r##"SELECT app_id FROM public."page_hierarchy" WHERE id = $1 "##,
         id
@@ -171,21 +167,6 @@ pub async fn delete_pages(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     // web_pages からデータを削除するときの、page_path作成のためにデータを取得しておく
-    //     let pages = sqlx::query_as::<_, HierarchyId>(
-    //         r##"
-    //     WITH RECURSIVE X(id, parent_path,child_path) AS
-    //     (SELECT ph.id,ph.parent_path,ph.child_path FROM public."page_hierarchy"  ph
-    // WHERE ph.id = $1
-    //     union  all
-    //     select ph.id, ph.parent_path, ph.child_path from X,public."page_hierarchy"  ph
-    //     where ph.parent_path = X.child_path AND X.parent_path != X.child_path)
-    //     SELECT id,child_path FROM X;
-    //     "##,
-    //     )
-    //     .bind(id)
-    //     .fetch_all(&mut tx)
-    //     .await?;
-
     let pages = sqlx::query_as::<_, HierarchyId>(
         r##"
         WITH RECURSIVE X AS 
@@ -204,24 +185,6 @@ SELECT id, child as child_path FROM X;
     .await?;
 
     // page_hierarchy から削除
-    //     if let Err(err) = sqlx::query(
-    //         r##"
-    //     WITH RECURSIVE X(id, parent_path,child_path) AS
-    //     (SELECT ph.id,ph.parent_path,ph.child_path FROM public."page_hierarchy"  ph
-    // WHERE ph.id = $1
-    //     union  all
-    //     select ph.id, ph.parent_path, ph.child_path from X,public."page_hierarchy"  ph
-    //     where ph.parent_path = X.child_path AND X.parent_path != X.child_path)
-    //     DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
-    //     "##,
-    //     )
-    //     .bind(id)
-    //     .fetch_all(&mut tx)
-    //     .await
-    //     {
-    //         tx.rollback().await?;
-    //         return Err(err);
-    //     };
     if let Err(err) = sqlx::query(
         r##" 
         WITH RECURSIVE X AS 
@@ -278,9 +241,17 @@ DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
 
         // ファイルの削除
         let file_path: String = row.get("file_path");
-        if let Err(e) = fs::remove_file(file_path) {
+
+        // if let Err(e) = fs::remove_file(file_path) {
+
+        //     tx.rollback().await?;
+        //     return Err(sqlx::Error::Io(e));
+        // };
+        if let Err(e) = delete_markdown(&url, &file_path).await {
+            println!("in delete_page, error occured, {}", e.to_string());
+            let err = io::Error::new(io::ErrorKind::NotFound, e.to_string());
             tx.rollback().await?;
-            return Err(sqlx::Error::Io(e));
+            return Err(sqlx::Error::Io(err));
         };
     }
     // web_pages から削除終わり
@@ -290,8 +261,32 @@ DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
 }
 
 /// fileにデータを書きこむ
-fn write_file(file_path: &str, page_data: &str) -> Result<(), sqlx::Error> {
-    if let Err(err) = fs::write(file_path, page_data) {
+async fn write_file(url: String, file_path: &str, page_data: &str) -> Result<(), sqlx::Error> {
+    // if let Err(err) = fs::write(file_path, page_data) {
+    //     return Err(sqlx::Error::Io(err));
+    // }
+    dotenv().ok();
+    let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
+
+    if let Err(e) = post_markdown(url, file_path, page_data).await {
+        println!("in weite_file, error occured, {}", e.to_string());
+        let err = io::Error::new(io::ErrorKind::NotFound, e.to_string());
+        return Err(sqlx::Error::Io(err));
+    }
+    Ok(())
+}
+
+/// fileのデータをアップデートする
+async fn update_file(url: String, file_path: &str, page_data: &str) -> Result<(), sqlx::Error> {
+    // if let Err(err) = fs::write(file_path, page_data) {
+    //     return Err(sqlx::Error::Io(err));
+    // }
+
+    dotenv().ok();
+    let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
+    if let Err(e) = put_markdown(url, file_path, page_data).await {
+        println!("in update_file, error occured, {}", e.to_string());
+        let err = io::Error::new(io::ErrorKind::NotFound, e.to_string());
         return Err(sqlx::Error::Io(err));
     }
     Ok(())
@@ -304,6 +299,8 @@ struct Id {
 /// ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
 /// 既にデータが存在する時はupdate,ファイル更新だけする。
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
+    dotenv().ok();
+    let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
     let file_path = &page.create_file_path();
     let page_path = &page.get_page_path();
     println!("regitering page_path = {}", page_path);
@@ -313,7 +310,7 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
         .is_ok()
     {
         // 既にデータが存在するので、ファイルを更新する
-        return write_file(file_path, page.page_data.as_ref().unwrap());
+        return update_file(url, file_path, page.page_data.as_ref().unwrap()).await;
     }
 
     // transaction start
@@ -371,22 +368,16 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
                     });
                 }
                 Err(_) => {
-                    println!(
-                        "In add_web_page parent_row match-arm Err(_), i={}, res[i-1]={:?}, res={:?}",
-                        i,
-                        res[i - 1],
-                        res
-                    );
                     // データが存在しないのでINSERT
                     let parent_id = sqlx::query_as::<_,Id>(r##"
                     INSERT INTO public."page_hierarchy"  (app_id, parent, child, depth) VALUES ($1,$2, $3, $4) RETURNING id
                     "##)
-                .bind(page.app_id)
-                .bind(res[i-1].id)
-                .bind(page_element.to_string())
-                .bind(depth)
-            .fetch_one(&mut tx)
-            .await;
+                    .bind(page.app_id)
+                    .bind(res[i-1].id)
+                    .bind(page_element.to_string())
+                    .bind(depth)
+                    .fetch_one(&mut tx)
+                    .await;
                     match parent_id {
                         Ok(got_id) => {
                             res.push(PageDecomposition {
@@ -410,68 +401,6 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
         res
     );
 
-    // for (i, hierarchy) in decompositioned_page.iter().enumerate() {
-    //     let j = i as i32;
-    //     let res = sqlx::query!(r##"
-    //         SELECT app_id FROM public."page_hierarchy" WHERE app_id = $1 AND parent = $2 AND child = $3 AND depth = $4
-    //         "##,
-    //         page.app_id,
-    //         hierarchy.parent,
-    //         hierarchy.child,
-    //         HIERARCHY_TOP_NUMBER + j +1
-    //         ).fetch_one(&mut tx).await;
-    //     match res {
-    //         Ok(_) => {
-    //             // すでに存在するデータなので何もしない
-    //         }
-    //         Err(_) => {
-    //             let j = i as i32;
-    //             // データがないので、page_hierarchy にデータ追加する
-    //             let _q = sqlx::query!(r##"
-    //             INSERT INTO public."page_hierarchy"  (app_id, parent, child, depth) VALUES ($1,$2, $3, $4)
-    //             "##,
-    //         page.app_id,
-    //         hierarchy.parent,
-    //         hierarchy.child,
-    //         HIERARCHY_TOP_NUMBER + j +1
-    //     ).execute(&mut tx)
-    //     .await?;
-    //         }
-    //     }
-    // }
-    // for (i, _path) in paths.clone().into_iter().enumerate() {
-    //     let j = i as i32;
-    //     // paths[i] -> parent_path, paths[i+1] -> child_paths なので、 i+1 がlength_of path 未満の時だけ処理する
-    //     if i + 1 < *length_of_path {
-    //         let res = sqlx::query!(r##"
-    //         SELECT app_id FROM public."page_hierarchy" WHERE app_id = $1 AND parent = $2 AND child = $3 AND depth = $4
-    //         "##,
-    //         page.app_id,
-    //         &paths[i],
-    //         &paths[i+1],
-    //         j+1
-    //         ).fetch_one(&mut tx).await;
-    //         match res {
-    //             Ok(_) => {
-    //                 // すでに存在するデータなので何もしない
-    //             }
-    //             Err(_) => {
-    //                 // データがないので、page_hierarchy にデータ追加する
-    //                 let j = i as i32;
-    //                 let _q = sqlx::query!(r##"
-    //             INSERT INTO public."page_hierarchy"  (app_id, parent, child, depth) VALUES ($1,$2, $3, $4)
-    //             "##,
-    //         page.app_id,
-    //         &paths[i],
-    //         &paths[i+1],
-    //         j +1
-    //     ).execute(&mut tx)
-    //     .await?;
-    //             }
-    //         }
-    //     }
-    // }
-
     // web_pages にデータ追加
     let added_page = sqlx::query!(
         r##" INSERT INTO public."web_pages" (app_id, page_path, file_path) VALUES ($1, $2, $3)"##,
@@ -486,9 +415,10 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     match added_page {
         Ok(_) => {
             let page_data = page.page_data.as_ref().unwrap();
-            if let Err(err) = fs::write(&file_path, page_data) {
+            let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
+            if let Err(err) = write_file(url, &file_path, page_data).await {
                 tx.rollback().await?;
-                Err(sqlx::Error::Io(err))
+                Err(err)
             } else {
                 tx.commit().await?;
                 Ok(())
@@ -543,18 +473,18 @@ mod tests {
     }
 
     // md/test.md に# test desu という内容のファイルがあるときに、呼び出せるかテスト。
-    #[test]
-    fn get_markdown_test() {
-        let test = String::from("# test desu");
+    // #[test]
+    // fn get_markdown_test() {
+    //     let test = String::from("# test desu");
 
-        let info = WebPageInfo {
-            app_id: 1,
-            page_path: "test.md".to_string(),
-            page_data: None,
-        };
+    //     let info = WebPageInfo {
+    //         app_id: 1,
+    //         page_path: "test.md".to_string(),
+    //         page_data: None,
+    //     };
 
-        let markdown_text = info.get_markdown();
+    //     let markdown_text = info.get_markdown();
 
-        assert_eq!(test, markdown_text.unwrap())
-    }
+    //     assert_eq!(test, markdown_text.unwrap())
+    // }
 }

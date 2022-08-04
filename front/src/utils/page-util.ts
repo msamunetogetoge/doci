@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosResponse } from "axios"
-import { Hierarchy } from "./hierarchy-utils";
+import { create_url } from "./url-util";
 
 
 // pageの情報を貰う時に使うインターフェース
@@ -9,7 +9,12 @@ export interface Page {
 }
 // backend側にデータを保存してもらい、成功したらナビゲーションバーにパスを追加する
 export async function AddOrUpdate(app_id: number, page_path: string, data: string): Promise<void> {
-    await axios.post("/page", {
+
+    // axiosで問い合わせるapiのurl作成
+    const path: string[] = ["page"];
+    const url = create_url(path);
+
+    await axios.post(url, {
         app_id: app_id,
         page_path: page_path,
         page_data: data,
@@ -28,7 +33,10 @@ export async function AddOrUpdate(app_id: number, page_path: string, data: strin
 export async function DeletePages(hierarchy_id: number): Promise<boolean> {
     let success = false;
 
-    const url = "/page" + "/" + hierarchy_id;
+    // axiosで問い合わせるapiのurl作成
+    const path: string[] = ["page", hierarchy_id.toString()];
+    const url = create_url(path);
+
     await axios.delete(url,
     ).then(() => {
         success = true;
@@ -44,7 +52,11 @@ export async function DeletePages(hierarchy_id: number): Promise<boolean> {
 // page_hierarchyのidからpage_pathとmdの内容を取得する
 export async function GetPage(id: number): Promise<Page> {
     let res: Page = { page_path: "", md: "" };
-    const url = "/page" + "/" + id;
+
+    // axiosで問い合わせるapiのurl作成
+    const path: string[] = ["page", id.toString()];
+    const url = create_url(path);
+
     await axios.get(url,
     ).then((response: AxiosResponse<Page>) => {
         res = response.data
@@ -61,8 +73,11 @@ export async function GetPage(id: number): Promise<Page> {
 // 存在する -> true
 export async function IsExistPage(app_id: number, page_path: string): Promise<boolean> {
     let is_exist = false;
-    const url = "/app" + "/" + app_id + "/page" + "?" + "page_path=" + page_path;
-    console.log("In IsExistPage, url = " + url);
+
+    // axiosで問い合わせるapiのurl作成
+    const path: string[] = ["app", app_id.toString(), "page?page_path=" + page_path];
+    const url = create_url(path);
+
     await axios.get(url)
         .then(function () {
             is_exist = true;

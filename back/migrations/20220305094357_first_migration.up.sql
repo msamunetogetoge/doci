@@ -59,7 +59,7 @@ CREATE TABLE page_hierarchy (
     depth int NOT NULL, --- child_path のdepth
     created_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL default CURRENT_TIMESTAMP,
-    PRIMARY KEY(id,app_id, parent_path, child),
+    PRIMARY KEY(id,app_id, parent, child),
     UNIQUE(app_id,child,depth)
 );
 

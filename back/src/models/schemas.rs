@@ -1,8 +1,12 @@
+use crate::models::requests::*;
+
 use serde::{Deserialize, Serialize};
 use std::{
-    env, fs, io,
+    env, io,
     path::{Path, PathBuf},
 };
+
+use dotenv::dotenv;
 
 /// users table
 #[derive(sqlx::FromRow)]
@@ -92,7 +96,6 @@ impl WebPageInfo {
     /hoge/hige/huga.md  の形でもらう
     */
     pub fn create_file_path(&self) -> String {
-        let folder_path = env::current_dir().unwrap().join(Path::new("md"));
         let mut file_path = self.app_id.to_string();
 
         let split = self.page_path.split('/');
@@ -106,11 +109,7 @@ impl WebPageInfo {
         }
         let mut _file_path = PathBuf::from(file_path);
         _file_path.set_extension("md");
-        file_path = folder_path
-            .join(_file_path.as_path())
-            .to_str()
-            .unwrap()
-            .to_string();
+        file_path = _file_path.to_str().unwrap().to_string();
 
         file_path
     }
@@ -126,24 +125,22 @@ impl WebPageInfo {
     }
 
     /**
-    markdown ファイルを取得する
+    markdown ファイルの中身を取得する
     */
-    pub fn get_markdown(&self) -> Result<String, io::Error> {
-        let folder_path = env::current_dir().unwrap().join(Path::new("md"));
+    pub async fn get_markdown(&self) -> Result<String, io::Error> {
+        dotenv().ok();
+        // let folder_path = env::current_dir().unwrap().join(Path::new("md"));
 
-        let file_path = folder_path.join(self.create_file_path());
+        // let file_path = folder_path.join(self.create_file_path());
 
-        fs::read_to_string(file_path)
-    }
+        // fs::read_to_string(file_path)
+        let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
 
-    /**
-    マークダウンを上書き保存する
-    */
-    pub fn edit_web_page(&self) -> io::Result<()> {
-        let folder_path = env::current_dir().unwrap().join(Path::new("md"));
-
-        let file_path = folder_path.join(self.create_file_path());
-        fs::write(file_path, self.page_data.as_ref().unwrap())
+        let contents_or_err = get_markdown_from_gcs(url, &self.create_file_path()).await;
+        match contents_or_err {
+            Ok(content) => Ok(content),
+            Err(err) => Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+        }
     }
 }
 
