@@ -51,9 +51,6 @@ def edit_document(_file_name=None) -> Response:
             content: str = request.json["content"]
             file_info.upload_file_content(file_name=file_name, content=content)
             return Response(status=200)
-        # except FileAlreadyExistsException as file_already_exists:
-        #     return Response(response=json.dumps({'message': create_error_message(file_already_exists)}),
-        #                     status=400)
         except Exception as create_error:
             return Response(response=json.dumps({'message': create_error_message(create_error)}),
                             status=500)
@@ -64,9 +61,6 @@ def edit_document(_file_name=None) -> Response:
             content: str = request.json["content"]
             file_info.update_file_content(file_name=file_name, content=content)
             return Response(status=200)
-        # except FileNotFoundError as file_not_found:
-        #     return Response(response=json.dumps({'message': create_error_message(file_not_found)}),
-        #                     status=400)
         except Exception as update_error:
             return Response(response=json.dumps({'message': create_error_message(update_error)}),
                             status=500)
@@ -75,9 +69,6 @@ def edit_document(_file_name=None) -> Response:
             file_name: str = request.json["file_name"]
             file_info.delete_file(file_name=file_name)
             return Response(status=200)
-        # except FileNotFoundException as file_not_found:
-        #     return Response(response=json.dumps({'message': create_error_message(file_not_found)}),
-        #                     status=400)
         except Exception as delete_error:
             return Response(response=json.dumps({'message': create_error_message(delete_error)}),
                             status=500)
@@ -100,4 +91,4 @@ def create_error_message(e: Exception) -> str:
 
 
 if __name__ == "__main__":
-    app.run(host='127.0.0.1', port=8080, debug=True)
+    app.run(host='127.0.0.1', port=8080, debug=False)
