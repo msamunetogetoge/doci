@@ -21,18 +21,6 @@ API_KEY_PATH: str = os.environ['CLEDENTIAL_FILE_PATH']
 # google storageのバケット名
 BUCKET_NAME: str = os.environ['BUCKET_NAME']
 
-
-# ToDo
-# 1. flask で "/" にPOSTが来たら引数を持っているかチェックする
-# 2. drive.util 内にgoogle drive内のファイルを操作するクラスを作成する。
-# 要件は以下の通り
-#   自動で認証を実行する
-#   doci フォルダ(id=13GbaoTXLFP1V-CMyo-kPSSMJBnIxXl3_) 内にfile_name のmarkdown ファイルがあるか検索する
-#   存在しない時はtitle = file_name, content_string= content となるデータを作成できる。
-#   存在する時はcontent_string= content となるデータにupdateできる。
-#   操作が成功したら、status code 200 失敗したらログを書き出し、400 や500 を返す。
-# 3. status code 200 以外が返ったら処理失敗
-
 @app.route("/", methods=['POST', 'PUT' 'DELETE'])
 @app.route("/<_file_name>", methods=['GET'])
 def edit_document(_file_name=None) -> Response:
@@ -97,19 +85,6 @@ def edit_document(_file_name=None) -> Response:
     else:
         return Response(response=json.dumps({'message': 'allowed methods are POST, PUT or DELETE'}),
                         status=400)
-
-
-# def set_file_information(file_name: str, content: str) -> GoogleDriveFs:
-#     """Google Driveのファイルを操作するインスタンス
-
-#     Args:
-#         file_name (str): ファイル名
-#         content (str): ファイルの内容
-
-#     Returns:
-#         GoogleDriveFs: GoogleDrive instance with authenticated GoogleAuth instance.
-#     """
-#     return GoogleDriveFs(file_name=file_name, content=content)
 
 
 def create_error_message(e: Exception) -> str:
