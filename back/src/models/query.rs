@@ -264,10 +264,17 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
 
     // page_hierarchy にデータを登録する
     // ToDo: res を関数内部から削除する
-    // ToDo: 何をしているのか日本語で説明を書く。
     // ToDo: 出来るならここのfor 文を関数に切り出す。
-    // 親の情報でpage_hierarchyからSELECT してみる
-    // -> 出来る->何もしない , 出来ない-> INSERT
+    // 帰納的に、page_hierarchy にデータを登録する。
+    // n =0 => 必ずデータが存在する
+    // n = 1 以降では
+    // n-1のデータを親に持つデータがselectでデータが取得できないとき <=> データが存在しないとして、
+    // insert 文を実行する。
+    // データがすでに存在するときは(フォルダ部分が存在するときは)何もしない。
+    // 例 mame/nanana/hage.md => 
+    // n=0 => name部分 の id_0 を取得
+    // n = 1 => id_0 を使って(parent, child)=(name, nanana)となっているデータ(id_1)をセレクト -> insertなど
+    // n=2 => id_1 を使って(parent, child)=(nanana, hage.md)となっているデータをセレクト -> insertなど
 
     for (i, page_element) in page_elements.enumerate() {
         if i == 0 {
