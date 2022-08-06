@@ -395,6 +395,9 @@ pub async fn get_web_page_info(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dotenv::dotenv;
+    use sqlx::postgres::PgPoolOptions;
+    use std::{env, path::Path, time::Duration};
 
     // 所定のファイル名を作成できるかテストする。
     // どのディレクトリに作られているか(current_dir/md/)はテストしない
@@ -413,6 +416,38 @@ mod tests {
             "100@doc@hoge@test.md",
             Path::new(&file_path).file_name().unwrap().to_str().unwrap()
         )
+    }
+
+    #[tokio::test]
+    async fn rows_exist_test() {
+        dotenv().ok();
+        // db connection string
+        let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        //db connection pool
+        let pool = PgPoolOptions::new()
+            .max_connections(3)
+            .connect_timeout(Duration::from_secs(3))
+            .connect(&database_url)
+            .await
+            .expect("can connect to database");
+        let rows_exist = sqlx::query(
+            r##"
+                SELECT EXISTS ( SELECT *  FROM public."web_pages" WHERE app_id = $1) 
+                "##,
+        )
+        .bind(-9999 as i64)
+        .fetch_one(&pool)
+        .await;
+        match rows_exist {
+            Ok(row) => {
+                let is_exist: bool = row.get("exists");
+                assert_eq!(is_exist, false)
+            }
+            Err(e) => {
+                println!("{}", e);
+                assert!(false)
+            }
+        }
     }
 
     // md/test.md に# test desu という内容のファイルがあるときに、呼び出せるかテスト。
