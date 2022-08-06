@@ -1,40 +1,12 @@
 use crate::models::{requests::*, schemas::*};
 use dotenv::dotenv;
 use sqlx::{postgres::PgPool, Row};
-use std::{env, fs, io, path::Path};
+use std::{env, io};
 
 /// page_hierarchy の一番上のデータのdepth を決める定数
 pub const HIERARCHY_TOP_NUMBER: i32 = 0;
 /// page_hierarchy  の一番上のデータのparent を決める定数
 pub const HIERARCHY_TOP_PARENT_ID: i64 = -99;
-
-/**
-ページ階層構造から、app_id を取り出す
-もしも、二つ以上のapp_idが紛れていたらpanicする
-*/
-pub fn get_app_id(pages: &[PageHierarchy]) -> i64 {
-    let first_page = pages.first().unwrap();
-    let i = first_page.app_id;
-
-    if pages.iter().all(|p| p.app_id == i) {
-        i
-    } else {
-        panic!("app_id が複数あるデータが入力された。")
-    }
-}
-
-/// Markdownを保管するディレクトリを作成する
-/// GCPかgoggleドライブ上に作成する予定なので、要変更
-pub fn models_init() {
-    let folder_path = env::current_dir().unwrap().join(Path::new("md"));
-
-    if let Err(why) = fs::create_dir(folder_path) {
-        if why.kind() != io::ErrorKind::AlreadyExists {
-            println!("! {:?}", why.kind());
-            panic!("Folder is not Exist But Cannot create folder")
-        }
-    }
-}
 
 // ドキュメントの情報を取得する
 pub async fn get_web_page(
@@ -102,20 +74,6 @@ pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String {
     let mut url = String::from("");
 
     // path_id の親すべて(自身も含む)を列挙するSQL
-    // let pages = sqlx::query_as::<_, ChildPath>(
-    //     r##" WITH RECURSIVE X( parent_path,child_path,depth) AS
-    // (SELECT ph.parent_path,ph.child_path, ph.depth FROM public."page_hierarchy"  ph WHERE ph.id = $1
-    // union  all
-    // select ph.parent_path, ph.child_path, ph.depth from X,public."page_hierarchy"  ph
-    // where X.parent_path = ph.child_path AND X.parent_path != X.child_path )
-    // SELECT child_path FROM X order by depth;
-    // "##,
-    // )
-    // .bind(path_id)
-    // .fetch_all(pool)
-    // .await
-    // .unwrap();
-
     let pages = sqlx::query_as::<_, ChildPath>(
         r##" WITH RECURSIVE X(id, parent,child,depth) AS
     (SELECT ph.id,ph.parent,ph.child, ph.depth FROM public."page_hierarchy"  ph WHERE ph.id = $1 AND ph.app_id=$2
@@ -132,7 +90,6 @@ pub async fn get_page_path(pool: &PgPool, path_id: i64) -> String {
     .unwrap();
 
     // app/hoge/abc.md/ の形のString を作る
-    println!("{:?}", pages);
     for child_path in pages.iter() {
         url.push_str(&child_path.child);
         url.push('/');
@@ -241,12 +198,6 @@ DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
 
         // ファイルの削除
         let file_path: String = row.get("file_path");
-
-        // if let Err(e) = fs::remove_file(file_path) {
-
-        //     tx.rollback().await?;
-        //     return Err(sqlx::Error::Io(e));
-        // };
         if let Err(e) = delete_markdown(&url, &file_path).await {
             println!("in delete_page, error occured, {}", e.to_string());
             let err = io::Error::new(io::ErrorKind::NotFound, e.to_string());
@@ -262,12 +213,6 @@ DELETE FROM public."page_hierarchy" WHERE id in( SELECT id FROM X);
 
 /// fileにデータを書きこむ
 async fn write_file(url: String, file_path: &str, page_data: &str) -> Result<(), sqlx::Error> {
-    // if let Err(err) = fs::write(file_path, page_data) {
-    //     return Err(sqlx::Error::Io(err));
-    // }
-    dotenv().ok();
-    let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
-
     if let Err(e) = post_markdown(url, file_path, page_data).await {
         println!("in weite_file, error occured, {}", e.to_string());
         let err = io::Error::new(io::ErrorKind::NotFound, e.to_string());
@@ -278,12 +223,6 @@ async fn write_file(url: String, file_path: &str, page_data: &str) -> Result<(),
 
 /// fileのデータをアップデートする
 async fn update_file(url: String, file_path: &str, page_data: &str) -> Result<(), sqlx::Error> {
-    // if let Err(err) = fs::write(file_path, page_data) {
-    //     return Err(sqlx::Error::Io(err));
-    // }
-
-    dotenv().ok();
-    let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
     if let Err(e) = put_markdown(url, file_path, page_data).await {
         println!("in update_file, error occured, {}", e.to_string());
         let err = io::Error::new(io::ErrorKind::NotFound, e.to_string());
@@ -296,6 +235,7 @@ async fn update_file(url: String, file_path: &str, page_data: &str) -> Result<()
 struct Id {
     id: i64,
 }
+
 /// ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
 /// 既にデータが存在する時はupdate,ファイル更新だけする。
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
@@ -316,16 +256,19 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     // transaction start
     let mut tx = pool.begin().await?;
 
+    // page_hierarchyに登録するデータの入れ物
+    let mut res: Vec<PageDecomposition> = Vec::new();
+
     // page_path をpage_hierarchy 用に分解
-    // let paths: Vec<&str> = page_path.split('/').collect();
-    // let length_of_path = &paths.len();
+    let page_elements = page_path.split('/');
 
     // page_hierarchy にデータを登録する
+    // ToDo: res を関数内部から削除する
+    // ToDo: 何をしているのか日本語で説明を書く。
+    // ToDo: 出来るならここのfor 文を関数に切り出す。
     // 親の情報でpage_hierarchyからSELECT してみる
     // -> 出来る->何もしない , 出来ない-> INSERT
-    let mut res: Vec<PageDecomposition> = Vec::new();
-    let page_elements = page_path.split('/');
-    println!("In add_web_page, page_elements = {:?}", page_elements);
+
     for (i, page_element) in page_elements.enumerate() {
         if i == 0 {
             let first_row = sqlx::query!(

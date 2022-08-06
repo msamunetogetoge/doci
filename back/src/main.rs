@@ -12,8 +12,6 @@ use serde::{Deserialize, Serialize};
 
 use dotenv::dotenv;
 
-use http::header::CONTENT_TYPE;
-
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
 use tower_http::cors::CorsLayer;
@@ -21,7 +19,7 @@ use tower_http::cors::CorsLayer;
 use tracing_subscriber::fmt;
 
 pub mod models;
-use crate::models::{query::*, requests::*, schemas::*};
+use crate::models::{query::*, schemas::*};
 
 pub mod users;
 use crate::users::auth::*;
@@ -31,8 +29,6 @@ pub mod errors;
 
 #[tokio::main]
 async fn main() {
-    // initing
-    models_init();
     dotenv().ok();
 
     // db connection string
@@ -52,9 +48,6 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        // `GET /` goes to `root`
-        // .route("/", get(root))
-        // .route("/check", post(check_exist_page))
         .route("/get_hierarchy", post(get_hierarchy))
         .route("/page", post(register_page))
         .route("/doc", post(create_doc))
@@ -92,11 +85,6 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
-}
-
-/// basic handler that responds with a static string
-async fn root() -> &'static str {
-    "Hello, World!"
 }
 
 /// ページパスを検索する為のクエリ

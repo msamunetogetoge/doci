@@ -1,9 +1,4 @@
-use std::env;
-
 use serde::{Deserialize, Serialize};
-use tracing_subscriber::field::debug;
-
-use dotenv::dotenv;
 
 #[derive(Serialize, Deserialize)]
 struct Post {
@@ -94,7 +89,9 @@ pub async fn delete_markdown(url: &str, file_name: &str) -> Result<(), reqwest::
 
 #[cfg(test)]
 mod tests {
+    use dotenv::dotenv;
     use http::StatusCode;
+    use std::env;
 
     use super::*;
 
