@@ -236,8 +236,24 @@ struct Id {
     id: i64,
 }
 
+pub async fn get_top_hierarchy_id(pool: &PgPool, app_id: i64) -> i64 {
+    let top_hierarchy = sqlx::query!(
+        r##"
+    SELECT id  FROM public."page_hierarchy" WHERE app_id=$1 AND parent=$2 AND depth = $3
+    "##,
+        app_id,
+        HIERARCHY_TOP_PARENT_ID,
+        HIERARCHY_TOP_NUMBER,
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    top_hierarchy.id
+}
+
 /// ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
 /// 既にデータが存在する時はupdate,ファイル更新だけする。
+/// web_page と page_hierarchy は連動しているので、同transaction内でそれぞれのテーブルにinsert処理する必要がある。
 pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
     dotenv().ok();
     let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
@@ -263,7 +279,6 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     let page_elements = page_path.split('/');
 
     // page_hierarchy にデータを登録する
-    // ToDo: res を関数内部から削除する
     // ToDo: 出来るならここのfor 文を関数に切り出す。
     // 帰納的に、page_hierarchy にデータを登録する。
     // n =0 => 必ずデータが存在する
@@ -271,74 +286,54 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     // n-1のデータを親に持つデータがselectでデータが取得できないとき <=> データが存在しないとして、
     // insert 文を実行する。
     // データがすでに存在するときは(フォルダ部分が存在するときは)何もしない。
-    // 例 mame/nanana/hage.md => 
+    // 例 mame/nanana/hage.md =>
     // n=0 => name部分 の id_0 を取得
     // n = 1 => id_0 を使って(parent, child)=(name, nanana)となっているデータ(id_1)をセレクト -> insertなど
     // n=2 => id_1 を使って(parent, child)=(nanana, hage.md)となっているデータをセレクト -> insertなど
 
+    let top_hierarchy_id = get_top_hierarchy_id(pool, page.app_id).await;
+    // 帰納的にデータを登録する際のpage_hierarchy.parent
+    let mut parent_id = top_hierarchy_id;
+
     for (i, page_element) in page_elements.enumerate() {
         if i == 0 {
-            let first_row = sqlx::query!(
-                r##"
-            SELECT id  FROM public."page_hierarchy" WHERE app_id=$1 AND parent=$2 AND depth = $3
-            "##,
-                page.app_id,
-                HIERARCHY_TOP_PARENT_ID,
-                HIERARCHY_TOP_NUMBER,
-            )
-            .fetch_one(pool)
-            .await
-            .unwrap();
-            res.push(PageDecomposition {
-                id: first_row.id,
-                parent: HIERARCHY_TOP_PARENT_ID,
-                child: page_element.to_string(),
-            });
+            continue;
         } else {
             let depth = HIERARCHY_TOP_NUMBER + i as i32;
             // page_hierarchy からSELECT してみる
             let parent_row = sqlx::query!(
-                        r##"
-                    SELECT id  FROM public."page_hierarchy" WHERE app_id=$1 AND parent=$2 AND child = $3 AND depth = $4 
-                    "##,
-                        page.app_id,
-                        res[i - 1].id,
-                        page_element,
-                        depth
-                    )
-                    .fetch_one(pool)
+                    r##"
+                SELECT id  FROM public."page_hierarchy" WHERE app_id=$1 AND parent=$2 AND child = $3 AND depth = $4 
+                "##,
+                    page.app_id,
+                    parent_id,
+                    page_element,
+                    depth
+                )
+                .fetch_one(pool)
                     .await;
             match parent_row {
                 Ok(selected_row) => {
                     // すでに存在するデータなのでINSERT はしない
-                    res.push(PageDecomposition {
-                        id: selected_row.id,
-                        parent: res[i - 1].id,
-                        child: page_element.to_string(),
-                    });
+                    parent_id = selected_row.id;
                 }
                 Err(_) => {
                     // データが存在しないのでINSERT
-                    let parent_id = sqlx::query_as::<_,Id>(r##"
+                    let created_id = sqlx::query_as::<_,Id>(r##"
                     INSERT INTO public."page_hierarchy"  (app_id, parent, child, depth) VALUES ($1,$2, $3, $4) RETURNING id
                     "##)
                     .bind(page.app_id)
-                    .bind(res[i-1].id)
+                    .bind(parent_id)
                     .bind(page_element.to_string())
                     .bind(depth)
                     .fetch_one(&mut tx)
                     .await;
-                    match parent_id {
-                        Ok(got_id) => {
-                            res.push(PageDecomposition {
-                                id: got_id.id,
-                                parent: res[i - 1].id,
-                                child: page_element.to_string(),
-                            });
+                    match created_id {
+                        Ok(id) => {
+                            parent_id = id.id;
                         }
                         Err(e) => {
                             tx.rollback().await?;
-                            println!("{:?}", &res);
                             return Err(e);
                         }
                     }
@@ -346,10 +341,6 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
             }
         }
     }
-    println!(
-        "In add_web_page, res(vector of PageDecompotion) = {:?}",
-        res
-    );
 
     // web_pages にデータ追加
     let added_page = sqlx::query!(
@@ -361,7 +352,7 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     .execute(&mut tx)
     .await;
 
-    // dbの処理が上手くいき、ファイルの更新が上手くいったらtransaction をコミットする。
+    // dbの処理と、ファイルの更新が上手くいったらtransaction をコミットする。
     match added_page {
         Ok(_) => {
             let page_data = page.page_data.as_ref().unwrap();
