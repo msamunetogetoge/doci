@@ -122,11 +122,6 @@ impl WebPageInfo {
     */
     pub async fn get_markdown(&self) -> Result<String, io::Error> {
         dotenv().ok();
-        // let folder_path = env::current_dir().unwrap().join(Path::new("md"));
-
-        // let file_path = folder_path.join(self.create_file_path());
-
-        // fs::read_to_string(file_path)
         let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
 
         let contents_or_err = get_markdown_from_gcs(url, &self.create_file_path()).await;
