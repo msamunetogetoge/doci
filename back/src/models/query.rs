@@ -8,7 +8,7 @@ pub const HIERARCHY_TOP_NUMBER: i32 = 0;
 /// page_hierarchy  の一番上のデータのparent を決める定数
 pub const HIERARCHY_TOP_PARENT_ID: i64 = -99;
 
-// ドキュメントの情報を取得する
+/// ドキュメントの情報を取得する
 pub async fn get_web_page(
     pool: &PgPool,
     id: i64,
@@ -21,6 +21,19 @@ pub async fn get_web_page(
         .fetch_one(pool)
         .await?;
     Ok(page)
+}
+
+/// web_pages にapp_id = id, page_oath = page_path のデータが存在すれば true
+/// そうでなければfalse
+/// db接続等でエラーがあればpanic
+pub async fn is_exist_page(pool: &PgPool, id: i64, page_path: &str) -> bool {
+    let is_exist_row = sqlx::query(r##" SELECT EXISTS (SELECT app_id FROM public."web_pages" WHERE app_id=$1 and page_path=$2)"##)
+        .bind(id)
+        .bind(page_path)
+        .fetch_one(pool)
+        .await.unwrap();
+    let is_exist: bool = is_exist_row.get("exists");
+    is_exist
 }
 
 /// page_hierarchy からdepth = HIERARCHY_TOP_NUMBER + 1 のデータを取得する
@@ -231,11 +244,7 @@ async fn update_file(url: String, file_path: &str, page_data: &str) -> Result<()
     Ok(())
 }
 
-#[derive(sqlx::FromRow)]
-struct Id {
-    id: i64,
-}
-
+/// app_id で指定される、最上部のpage_hierarchy.id を返す
 pub async fn get_top_hierarchy_id(pool: &PgPool, app_id: i64) -> i64 {
     let top_hierarchy = sqlx::query!(
         r##"
@@ -251,50 +260,16 @@ pub async fn get_top_hierarchy_id(pool: &PgPool, app_id: i64) -> i64 {
     top_hierarchy.id
 }
 
-/// ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
-/// 既にデータが存在する時はupdate,ファイル更新だけする。
-/// web_page と page_hierarchy は連動しているので、同transaction内でそれぞれのテーブルにinsert処理する必要がある。
-pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
-    dotenv().ok();
-    let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
-    let file_path = &page.create_file_path();
-    let page_path = &page.get_page_path();
-    println!("regitering page_path = {}", page_path);
-
-    if get_web_page(pool, page.app_id, &page.page_path)
-        .await
-        .is_ok()
-    {
-        // 既にデータが存在するので、ファイルを更新する
-        return update_file(url, file_path, page.page_data.as_ref().unwrap()).await;
-    }
-
-    // transaction start
-    let mut tx = pool.begin().await?;
-
-    // page_hierarchyに登録するデータの入れ物
-    let mut res: Vec<PageDecomposition> = Vec::new();
-
-    // page_path をpage_hierarchy 用に分解
+/// page_pathから、page_hierarchyに登録されていない部分を抜き出す。
+/// add_web_page の中で使われる
+/// ex. app_name/dir1/dir2/dir3/hoge.md -> (page_hierarchy.id, depth, page_path)=(id of dir2/dir3 ,3 "dir3/hoge.md")
+pub async fn get_new_hierarchy(
+    pool: &PgPool,
+    app_id: i64,
+    page_path: &str,
+) -> Result<(i64, i32, String), sqlx::Error> {
+    let mut parent_id = get_top_hierarchy_id(pool, app_id).await;
     let page_elements = page_path.split('/');
-
-    // page_hierarchy にデータを登録する
-    // ToDo: 出来るならここのfor 文を関数に切り出す。
-    // 帰納的に、page_hierarchy にデータを登録する。
-    // n =0 => 必ずデータが存在する
-    // n = 1 以降では
-    // n-1のデータを親に持つデータがselectでデータが取得できないとき <=> データが存在しないとして、
-    // insert 文を実行する。
-    // データがすでに存在するときは(フォルダ部分が存在するときは)何もしない。
-    // 例 mame/nanana/hage.md =>
-    // n=0 => name部分 の id_0 を取得
-    // n = 1 => id_0 を使って(parent, child)=(name, nanana)となっているデータ(id_1)をセレクト -> insertなど
-    // n=2 => id_1 を使って(parent, child)=(nanana, hage.md)となっているデータをセレクト -> insertなど
-
-    let top_hierarchy_id = get_top_hierarchy_id(pool, page.app_id).await;
-    // 帰納的にデータを登録する際のpage_hierarchy.parent
-    let mut parent_id = top_hierarchy_id;
-
     for (i, page_element) in page_elements.enumerate() {
         if i == 0 {
             continue;
@@ -303,9 +278,9 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
             // page_hierarchy からSELECT してみる
             let parent_row = sqlx::query!(
                     r##"
-                SELECT id  FROM public."page_hierarchy" WHERE app_id=$1 AND parent=$2 AND child = $3 AND depth = $4 
+                SELECT id  FROM public."page_hierarchy" WHERE app_id=$1 AND parent=$2 AND child = $3 AND depth = $4
                 "##,
-                    page.app_id,
+                    app_id,
                     parent_id,
                     page_element,
                     depth
@@ -314,31 +289,80 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
                     .await;
             match parent_row {
                 Ok(selected_row) => {
-                    // すでに存在するデータなのでINSERT はしない
                     parent_id = selected_row.id;
                 }
                 Err(_) => {
-                    // データが存在しないのでINSERT
-                    let created_id = sqlx::query_as::<_,Id>(r##"
+                    // この先は存在しないデータなので、return する
+                    let new_path: Vec<&str> =
+                        page_path.split('/').collect::<Vec<&str>>()[i..].to_vec();
+                    println!("get_new_hierarchy new_path = {:?}", new_path);
+                    return Ok((parent_id, depth, new_path.join("/")));
+                }
+            }
+        }
+    }
+    // 既に存在するデータなので、エラーを返す
+    let custom_error = io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "this page path is already exist.",
+    );
+    Err(sqlx::Error::Io(custom_error))
+}
+
+/// ドキュメントを追加する。 page_id はSerial で勝手に振られるので、適当な値を入れておく。
+/// 既にデータが存在する時はupdate,ファイル更新だけする。
+/// web_page と page_hierarchy は連動しているので、同transaction内でそれぞれのテーブルにinsert処理する必要がある。
+pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::Error> {
+    dotenv().ok();
+    let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
+    let file_path = &page.create_file_path();
+    let page_path = &page.get_page_path();
+
+    if is_exist_page(pool, page.app_id, &page.page_path).await {
+        // 既にデータが存在するので、ファイルを更新する
+        return update_file(url, file_path, page.page_data.as_ref().unwrap()).await;
+    }
+
+    // データをpage_hierarchy, web_pagesに登録する
+    // transaction start
+    let mut tx = pool.begin().await?;
+
+    // 次の手順でpage_hierarchy にデータを登録する。
+    // 1. 与えられたpage_path から、どこまでが既存のパスを取り除き、先頭のhierarchyのidとdepth を取得する
+    // 2. 順々にデータをinsertする
+    let new_hierarchy = get_new_hierarchy(pool, page.app_id, page_path).await;
+    match new_hierarchy {
+        Ok((id, first_depth, new_path)) => {
+            let mut parent_id = id;
+            let mut depth = first_depth;
+
+            // 帰納的にデータをinsertする
+            for hierarchy in new_path.split('/').into_iter() {
+                let created_id = sqlx::query(r##"
                     INSERT INTO public."page_hierarchy"  (app_id, parent, child, depth) VALUES ($1,$2, $3, $4) RETURNING id
                     "##)
                     .bind(page.app_id)
                     .bind(parent_id)
-                    .bind(page_element.to_string())
+                    .bind(hierarchy)
                     .bind(depth)
                     .fetch_one(&mut tx)
                     .await;
-                    match created_id {
-                        Ok(id) => {
-                            parent_id = id.id;
-                        }
-                        Err(e) => {
-                            tx.rollback().await?;
-                            return Err(e);
-                        }
+                match created_id {
+                    Ok(id) => {
+                        // let parent: i64 = id.get("id");
+                        parent_id = id.get("id");
+                        depth = depth + 1;
+                    }
+                    Err(create_error) => {
+                        tx.rollback().await?;
+                        return Err(create_error);
                     }
                 }
             }
+        }
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err);
         }
     }
 
@@ -355,8 +379,10 @@ pub async fn add_web_page(pool: &PgPool, page: WebPageInfo) -> Result<(), sqlx::
     // dbの処理と、ファイルの更新が上手くいったらtransaction をコミットする。
     match added_page {
         Ok(_) => {
+            // ファイル更新
             let page_data = page.page_data.as_ref().unwrap();
             let url = env::var("FILE_SERVER_URL").expect("FILE_SERVER_URL must be set");
+            // 処理が失敗したらrollback, 成功したらcommit
             if let Err(err) = write_file(url, &file_path, page_data).await {
                 tx.rollback().await?;
                 Err(err)

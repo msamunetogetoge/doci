@@ -73,20 +73,13 @@ pub struct WebPages {
     pub file_path: String,
 }
 
-// post from client, document infomation
-// dbのweb_pagesのデータ(WebPages.file_pathの中身=page_data)をやり取りするのに使う
+/// post from client, document infomation
+/// dbのweb_pagesのデータ(WebPages.file_pathの中身=page_data)をやり取りするのに使う
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WebPageInfo {
     pub app_id: i64,
     pub page_path: String,
     pub page_data: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct PageDecomposition {
-    pub id: i64,
-    pub parent: i64,
-    pub child: String,
 }
 
 impl WebPageInfo {
