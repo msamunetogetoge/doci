@@ -110,14 +110,11 @@ async fn try_get_page(
     extract::Extension(pool): extract::Extension<PgPool>,
 ) -> impl IntoResponse {
     let extract::Query(page_path) = page_path.unwrap_or_default();
-    println!("In try_get_page, PageQuery = {:?}", page_path);
-    let web_pages_or_none = get_web_page(&pool, app_id, &page_path.page_path).await;
-    match web_pages_or_none {
-        Ok(web_page) => (StatusCode::OK, Json(Some(web_page))),
-        Err(e) => {
-            tracing::error!("In try_get_page: error occured error:,{}", e);
-            (StatusCode::BAD_REQUEST, Json(None))
-        }
+    let web_pages_or_none = is_exist_page(&pool, app_id, &page_path.page_path).await;
+    if web_pages_or_none {
+        StatusCode::OK //存在するのでcode 200を返す
+    } else {
+        StatusCode::NOT_FOUND // 存在しないのでcode 404 を返す
     }
 }
 

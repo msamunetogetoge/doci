@@ -14,7 +14,6 @@ pub async fn get_web_page(
     id: i64,
     page_path: &str,
 ) -> Result<WebPages, sqlx::Error> {
-    println!("In get_web_page id={}, page_path={}", id, page_path);
     let page = sqlx::query_as::<_, WebPages>(r##"SELECT app_id, page_path, file_path FROM public."web_pages" WHERE app_id=$1 and page_path=$2"##)
         .bind(id)
         .bind(page_path)
@@ -295,7 +294,6 @@ pub async fn get_new_hierarchy(
                     // この先は存在しないデータなので、return する
                     let new_path: Vec<&str> =
                         page_path.split('/').collect::<Vec<&str>>()[i..].to_vec();
-                    println!("get_new_hierarchy new_path = {:?}", new_path);
                     return Ok((parent_id, depth, new_path.join("/")));
                 }
             }
