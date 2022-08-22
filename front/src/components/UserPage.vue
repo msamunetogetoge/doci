@@ -103,7 +103,7 @@ import {
 
 @Component
 export default class UserPage extends Vue {
-  // 参加しているdoc一覧
+  // 参加しているdoc一覧 // 複数人でドキュメント編集機能を作る時に使う
   joined_doc: appinfo[] = [];
   // 作成したdoc一覧
   created_doc: appinfo[] = [];
@@ -115,10 +115,11 @@ export default class UserPage extends Vue {
   created_header = [
     // { text: "Id", value: "app_id" },
     { text: "Name", value: "app_name", align: "start" },
-    // { text: "CreatedBy", value: "created_by" },
+    // { text: "CreatedBy", value: "created_by" }, // 複数人でドキュメント編集機能を作る時に使う
     { text: "CreatedAt", value: "created_at_string" },
   ];
 
+  // 複数人でドキュメント編集機能を作る時に使う
   // 参加しているdocの v-data-table のheader
   // joined_header = [
   //   { text: "Name", value: "name", align: "start" },
@@ -142,7 +143,6 @@ export default class UserPage extends Vue {
     return;
   }
   async mounted() {
-    console.log("This is user-page");
     this.user_id = this.$store.state.user_id;
     this.user_name = this.$store.state.user_name;
 

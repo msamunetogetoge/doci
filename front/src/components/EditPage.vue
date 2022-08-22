@@ -37,34 +37,53 @@
       style=""
     >
     </nav-bar>
-    <v-row>
-      <v-col v-if="show_md">
-        <vue-simplemde
-          v-model="markdown"
-          ref="markdownEditor"
-          :configs="md_configs"
-        />
-      </v-col>
+    <v-skeleton-loader
+      type="card, actions"
+      loading="true"
+      class="pa-md-4 mx-lg-auto"
+      transition="scale-transition"
+      v-if="loading"
+    >
+    </v-skeleton-loader>
+    <v-container v-if="!loading">
+      <v-row>
+        <v-col v-if="show_md">
+          <vue-simplemde
+            v-model="markdown"
+            ref="markdownEditor"
+            :configs="md_configs"
+          />
+        </v-col>
 
-      <v-col>
-        <v-card class="overflow-y-auto" v-if="html !== ''">
-          <v-card-title>Output HTML</v-card-title>
-          <v-card-text class="purehtml" filled v-html="html"> </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-    <v-row>
-      <v-spacer></v-spacer>
-      <v-btn depressed @click="Convert" v-if="show_md && editing"> 変換</v-btn>
-      <v-spacer></v-spacer>
-      <v-btn v-if="page_path !== '/' && show_md && editing" @click="UpdatePage"
-        >更新</v-btn
-      >
-      <v-btn v-if="page_path !== '/' && show_md && !editing" @click="AddPage"
-        >作成</v-btn
-      >
-      <v-spacer></v-spacer>
-    </v-row>
+        <v-col>
+          <v-card class="overflow-y-auto" v-if="html !== ''">
+            <v-card-title>Output HTML</v-card-title>
+            <v-card-text class="purehtml" filled v-html="html"> </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+      <v-row>
+        <v-spacer></v-spacer>
+        <v-btn
+          depressed
+          @click="Convert"
+          v-if="show_md && editing"
+          v-bind:disabled="markdown.trim() == ''"
+        >
+          変換</v-btn
+        >
+        <v-spacer></v-spacer>
+        <v-btn
+          v-if="page_path !== '/' && show_md && editing"
+          @click="UpdatePage"
+          >更新</v-btn
+        >
+        <v-btn v-if="page_path !== '/' && show_md && !editing" @click="AddPage"
+          >作成</v-btn
+        >
+        <v-spacer></v-spacer>
+      </v-row>
+    </v-container>
   </v-container>
 </template>
 
@@ -96,20 +115,29 @@ md.use(markdownItPlantuml);
 })
 export default class EditPage extends Vue {
   // vuex から created の時に値を渡す
-  app_id = 0;
-  user_id = 0;
-  app_name = "";
-  page_path = "/";
+  public app_id = 0;
+  public user_id = "";
+  public app_name = "";
+  public page_path = "/";
   // 更新/作成ボタンの切り替え制御フラグ
-  editing = true;
+  public editing = true;
   // markdown入力部分の表示制御フラグ
-  show_md = true;
-  markdown = "";
-  html = "";
-  ShowNavBar = true;
+  public show_md = true;
+  // .mdファイルに書き込む文字列
+  public markdown = "";
+  // .mdファイルをhtmlに変換した時の文字列
+  public html = "";
+  // <nav-bar>表示の制御フラグ
+  public ShowNavBar = true;
+
+  // 変換ボタンの表示フラグ
+  IsEnableConvertButton = this.markdown.trim() !== "";
+
+  // ローディング画面表示のフラグ
+  public loading = false;
 
   // simplemde のconfig
-  md_configs = {
+  readonly md_configs = {
     spellChecker: false,
     toolbar: [
       "bold",
@@ -131,7 +159,7 @@ export default class EditPage extends Vue {
     ],
   };
 
-  items_folder: Hierarchy[] = [
+  public items_folder: Hierarchy[] = [
     {
       app_id: this.app_id,
       name: this.app_name,
@@ -163,7 +191,7 @@ export default class EditPage extends Vue {
 
   ClickViewButton() {
     this.show_md = !this.show_md;
-    this.editing = true;
+    this.editing = false;
   }
 
   // nav-barに表示される頁構造を更新する
@@ -172,8 +200,6 @@ export default class EditPage extends Vue {
     this.$nextTick(() => (this.ShowNavBar = true));
   }
 
-  // app_id = 0;
-  // page_path = "index.md";
   GetPagePath(page_path: string) {
     console.log("GetPAgePAth is Calling page_path = " + page_path);
     this.page_path = page_path;
@@ -185,8 +211,9 @@ export default class EditPage extends Vue {
   }
 
   SetNew() {
-    this.editing = false;
+    this.editing = true;
     this.markdown = "";
+    this.Convert();
   }
 
   // 作成ボタン/更新ボタンを押したときに呼ばれる。
@@ -196,6 +223,8 @@ export default class EditPage extends Vue {
       alert("既に存在するページです");
     } else {
       try {
+        // ページ追加が終わるまで 画面を使えなくする
+        this.loading = true;
         // ページファイルを追加する
         await AddOrUpdate(this.app_id, this.page_path, this.markdown);
         // nav bar のページ構造部分を初期化する
@@ -214,13 +243,17 @@ export default class EditPage extends Vue {
         alert("データを登録しました。");
       } catch (error) {
         alert(error);
+      } finally {
+        this.loading = false;
       }
     }
   }
   // 更新ボタンを押したときに呼ばれる。
-  // マークダウンを更新する。
+  // データを更新する。
   async UpdatePage() {
     try {
+      // ページ追加が終わるまで 画面を使えなくする
+      this.loading = true;
       // ページファイルをセーブする
       await AddOrUpdate(this.app_id, this.page_path, this.markdown);
       // nav bar のページ構造部分を初期化する
@@ -238,6 +271,8 @@ export default class EditPage extends Vue {
       alert("データを更新しました。");
     } catch (error) {
       alert(error);
+    } finally {
+      this.loading = false;
     }
   }
 }

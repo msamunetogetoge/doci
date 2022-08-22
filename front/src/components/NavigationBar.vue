@@ -6,13 +6,14 @@
       v-model="drawer"
       :mini-variant.sync="mini"
       permanent
+      width="512"
     >
       <v-list-item class="px-2">
         <v-list-item-avatar>
           <v-icon>mdi-account-box</v-icon>
         </v-list-item-avatar>
 
-        <v-list-item-title>UserName</v-list-item-title>
+        <v-list-item-title>{{ user_name }}</v-list-item-title>
 
         <v-btn icon @click.stop="mini = !mini">
           <v-icon>mdi-chevron-left</v-icon>
@@ -20,18 +21,6 @@
       </v-list-item>
 
       <v-divider></v-divider>
-
-      <v-list dense>
-        <v-list-item v-for="item in items" :key="item.title" link>
-          <v-list-item-icon>
-            <v-icon>{{ item.icon }}</v-icon>
-          </v-list-item-icon>
-
-          <v-list-item-content>
-            <v-list-item-title>{{ item.title }}</v-list-item-title>
-          </v-list-item-content>
-        </v-list-item>
-      </v-list>
       <template>
         <v-treeview
           v-if="show_tree"
@@ -42,44 +31,26 @@
           :transition="true"
           :load-children="AddChildren"
         >
+          <!-- hover が上手く動いてない -->
+          <template v-slot:label="{ item }">
+            <v-hover v-slot:default="{ hover }">
+              <div>
+                <span> {{ item.name }} </span>
+                <span v-if="hover">{{ item.name }}</span>
+              </div>
+            </v-hover>
+          </template>
           <template v-slot:prepend="{ item }">
             <v-icon v-text="GetIcon(item)"></v-icon>
           </template>
           <template v-slot:append="{ item }">
-            <v-btn icon v-if="item.depth != 1" @click="DeleteItems(item.id)">
+            <v-btn
+              icon
+              v-if="item.depth != HIERARCHY_TOP_NUMBER"
+              @click="DeleteItems(item.id)"
+            >
               <v-icon v-text="files.delete"></v-icon>
             </v-btn>
-            <!-- <v-dialog v-model="dialog" max-width="600px" :retain-focus="false">
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn icon v-if="item.depth != 1" v-bind="attrs" v-on="on">
-                  <v-icon v-text="files.delete"></v-icon>
-                </v-btn>
-              </template>
-
-              <v-card>
-                <v-card-text> 削除しますか？ </v-card-text>
-                <v-card-actions>
-                  <v-spacer></v-spacer>
-
-                  <v-btn color="blue darken-1" text @click="dialog = false">
-                    No
-                  </v-btn>
-                  <v-btn
-                    color="blue darken-1"
-                    text
-                    @click="DeleteItems(item.id)"
-                  >
-                    Yes
-                  </v-btn>
-                </v-card-actions>
-              </v-card>
-            </v-dialog> -->
-            <!-- <v-btn icon @click="DeleteItems(item)">
-              <v-icon
-              v-text="files.delete"
-              ></v-icon>
-              </v-btn> -->
-
             <v-btn icon v-if="!item.children" @click="EditItems(item)">
               <v-icon v-text="files.pencil"></v-icon>
             </v-btn>
@@ -94,9 +65,7 @@ import { DeletePages, GetPage } from "../utils/page-util";
 import { Vue, Component, Prop } from "vue-property-decorator";
 import { GetFolders, Hierarchy } from "../utils/hierarchy-utils";
 
-// db のpublic.page_hierarchy でparent_path= app_name. child_path=app_name のdepthを表す定数。
-// back 側にも同じ定数があるので合わせる必要がある。
-const HIERARCHY_TOP_NUMBER = 0;
+// const HIERARCHY_TOP_NUMBER = 0;
 @Component
 export default class NavBar extends Vue {
   @Prop({ type: Number, default: 0 })
@@ -111,12 +80,19 @@ export default class NavBar extends Vue {
   @Prop({ default: () => [] })
   PageHierarchy!: Hierarchy[];
 
+  // db のpublic.page_hierarchy でparent_path= app_name. child_path=app_name のdepthを表す定数。
+  // back 側にも同じ定数があるので合わせる必要がある。
+  readonly HIERARCHY_TOP_NUMBER = 0;
+
   dialog = false;
   drawer = true;
   mini = true;
   show_tree = true;
   // treeviewで、最初に開いておくフォルダなど
   open = [];
+
+  // ユーザー名
+  user_name = this.$store.state.user_name;
 
   //アイコン名
   files = {
@@ -134,22 +110,15 @@ export default class NavBar extends Vue {
     pencil: "mdi-lead-pencil",
   };
 
-  items = [
-    { title: "Real-Time", icon: "mdi-clock" },
-    { title: "Audience", icon: "mdi-account" },
-    { title: "Conversions", icon: "mdi-flag" },
-  ];
-
   items_folder: Hierarchy[] = []; // tree-view の中身
 
   // mount が終わったらプロパティの初期値をtree-view にセットする
   mounted() {
-    // this.items_folder=this.PageHierarchy;
     this.items_folder = [
       {
         app_id: this.AppId,
         name: this.AppName,
-        depth: HIERARCHY_TOP_NUMBER,
+        depth: this.HIERARCHY_TOP_NUMBER,
         id: undefined,
         children: [],
       },
@@ -159,7 +128,6 @@ export default class NavBar extends Vue {
   // tree-viewのボタンをクリックしたときに呼ばれる
   // 確認したらフォルダ(を含む)以下を削除する
   async DeleteItems(hierarchy_id: number): Promise<void> {
-    console.log("In DeleteItems , id=" + hierarchy_id);
     let success = await DeletePages(hierarchy_id);
     if (success) {
       alert("削除しました");
@@ -197,7 +165,7 @@ export default class NavBar extends Vue {
 
   // tree-view のアイコンを決める関数
   GetIcon(item: Hierarchy): string {
-    if (item.depth === HIERARCHY_TOP_NUMBER) {
+    if (item.depth === this.HIERARCHY_TOP_NUMBER) {
       return this.files["folders"];
     } else if (item.children) {
       return this.files["folder"];

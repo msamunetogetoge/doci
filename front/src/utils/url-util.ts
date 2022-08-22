@@ -9,7 +9,6 @@ export class UrlBuilder {
 
     // productionか否かフラグをセットし、urlの初期値を決める
     constructor() {
-        console.log(process.env);
         if (process.env.VUE_APP_PROXY_DOMAIN != undefined) {
             this.isProduction = true;
         }

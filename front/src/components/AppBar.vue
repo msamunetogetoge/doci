@@ -1,24 +1,13 @@
 <template>
   <v-app-bar app color="primary" dark clipped-left>
-    <!-- <page-path-input v-if ="IsInput" @EndInput="IsInput = false" @GivePagePath="SetPagePath"/> -->
-    <div class="d-flex align-center">
-      <!-- doci icon <v-img
-          alt="Vuetify Logo"
-          class="shrink mr-2"
-          contain
-          src="https://cdn.vuetifyjs.com/images/logos/vuetify-logo-dark.png"
-          transition="scale-transition"
-          width="40"
-        /> -->
-
-      Doci
-    </div>
+    <div class="d-flex align-center">Doci</div>
 
     <v-spacer></v-spacer>
     <v-dialog v-model="dialog" persistent max-width="600px">
       <template v-slot:activator="{ on, attrs }">
-        <v-btn icon @click="IsInput = true" v-bind="attrs" v-on="on">
-          New
+        <!-- <v-btn icon @click="IsInput = true" v-bind="attrs" v-on="on"> -->
+        <v-btn icon @click="InitDialog" v-bind="attrs" v-on="on">
+          CREATE
         </v-btn>
       </template>
       <v-card>
@@ -56,16 +45,8 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <!-- <v-btn icon @click="IsInput = true">
-      <v-icon>mdi-pen-plus</v-icon>
-      New
-    </v-btn> -->
     <v-btn href="" target="_blank" icon>
       <v-icon>mdi-github</v-icon>
-    </v-btn>
-    <v-btn href="" target="_blank" text>
-      <span class="mr-2">Login</span>
-      <v-icon>mdi-open-in-new</v-icon>
     </v-btn>
   </v-app-bar>
 </template>
@@ -128,6 +109,11 @@ export default class AppBar extends Vue {
     this.page_path_post = this.page_path_post.replaceAll(regx, "/");
     this.page_path_post = this.page_path_post + ".md";
     await this.CheckPagePath();
+  }
+
+  InitDialog() {
+    this.IsInput = true;
+    this.page_path = "";
   }
 
   // 既に存在するページのパスか調べる。

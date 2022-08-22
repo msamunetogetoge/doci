@@ -28,6 +28,7 @@
             Login
           </v-btn>
           <v-btn color="primary" class="mr-4" @click="signUp"> SignUp </v-btn>
+          <v-btn color="secondry" class="mr-4" @click="Trial"> Trial </v-btn>
         </v-form>
       </v-card-text>
     </v-card>
@@ -65,7 +66,24 @@ export default class LoginForm extends Vue {
       this.display_error = false;
       // success ==true => storeにname, idをセットしてユーザーページに飛ばす
       let user = await get_user(this.id);
-      console.log(user);
+      this.$store.dispatch("set_user_id", user.userid);
+      this.$store.dispatch("set_user_name", user.username);
+      this.$router.push("user");
+    } else {
+      this.$store.dispatch("login_state_no");
+      this.displayError();
+    }
+  }
+
+  async Trial() {
+    const id = "test";
+    const pass = "test";
+    let success = await login(id, pass);
+    if (success) {
+      this.$store.dispatch("login_state_ok");
+      this.display_error = false;
+      // success ==true => storeにname, idをセットしてユーザーページに飛ばす
+      let user = await get_user(id);
       this.$store.dispatch("set_user_id", user.userid);
       this.$store.dispatch("set_user_name", user.username);
       this.$router.push("user");
